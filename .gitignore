@@ -45,3 +45,17 @@ htmlcov/
 
 # Docker
 docker-compose.override.yml
+
+# ML datasets
+ml/data/
+
+# Training outputs
+ml/results/
+
+# Model checkpoints
+ml/models/*.pth
+ml/models/*.pt
+
+# Python
+__pycache__/
+*.pyc

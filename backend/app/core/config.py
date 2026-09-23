@@ -1,32 +1,34 @@
+from functools import lru_cache
+from pathlib import Path
+from typing import List, Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Application
-    APP_NAME: str = "KrushiPragya API"
-    APP_VERSION: str = "1.0.0"
-    APP_ENV: str = "development"
-    APP_DEBUG: bool = True
-    APP_PORT: int = 8000
+    """Application settings loaded from environment variables and .env file."""
 
-    # Supabase
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str | None = None
-    SUPABASE_SERVICE_ROLE_KEY: str | None = None
+    APP_NAME: str = Field(default="KrushiPragya", description="Name of the application")
+    APP_VERSION: str = Field(default="1.0.0", description="Application version")
+    ENVIRONMENT: str = Field(default="development", description="Runtime environment")
+    DEBUG: bool = Field(default=True, description="Debug mode flag")
+    DATABASE_URL: Optional[str] = Field(default="", description="PostgreSQL database connection URL")
+    DIRECT_URL: Optional[str] = Field(default=None, description="Direct PostgreSQL connection URL for migrations")
+    CORS_ORIGINS: List[str] = Field(default=["*"], description="Allowed CORS origins")
 
-    # Database
-    DATABASE_URL: str
-    DIRECT_URL: str | None = None
+    # Weather Provider Configuration
+    WEATHER_PROVIDER: str = Field(default="openweather", description="Active weather provider implementation")
+    OPENWEATHER_API_KEY: Optional[str] = Field(default=None, description="API key for OpenWeatherMap")
+    OPENWEATHER_BASE_URL: str = Field(
+        default="https://api.openweathermap.org/data/2.5",
+        description="Base URL for OpenWeatherMap API",
+    )
 
-    # JWT
-    JWT_SECRET: str
-    JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRATION_MINUTES: int = 30
-
-    # External APIs
-    OPENAI_API_KEY: str | None = None
-    WEATHER_API_KEY: str | None = None
-    MARKET_API_KEY: str | None = None
+    # Disease Detection Model Configuration
+    DISEASE_MODEL_DIR: str = Field(
+        default="",
+        description="Path to directory containing trained disease classification model checkpoints (empty string defaults to <project_root>/models/disease)",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -35,5 +37,24 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @property
+    def is_database_configured(self) -> bool:
+        """Check if DATABASE_URL has been configured."""
+        return bool(self.DATABASE_URL and self.DATABASE_URL.strip())
 
-settings = Settings()
+    @property
+    def resolved_disease_model_dir(self) -> Path:
+        """Resolve path to models/disease directory."""
+        if self.DISEASE_MODEL_DIR and self.DISEASE_MODEL_DIR.strip():
+            return Path(self.DISEASE_MODEL_DIR)
+        return Path(__file__).resolve().parents[2] / "models" / "disease"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return cached singleton instance of Settings."""
+    return Settings()
+
+
+# Singleton settings instance
+settings: Settings = get_settings()

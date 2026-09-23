@@ -1,47 +1,67 @@
-from fastapi import FastAPI
-from sqlalchemy import text
+from contextlib import asynccontextmanager
+import logging
+from typing import AsyncGenerator
 
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.v1.health import router as health_router
+from app.api.v1.weather import router as weather_router
+from app.api.v1.disease import router as disease_router
 from app.core.config import settings
-from app.database.connection import engine
+from app.core.logging import setup_logging
+
+# Initialize logging
+logger = setup_logging()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan manager for startup and shutdown events."""
+    logger.info("Starting up %s (v%s) in [%s] mode...", settings.APP_NAME, settings.APP_VERSION, settings.ENVIRONMENT)
+    # Perform any startup verification or connection pool warming here if needed
+    yield
+    logger.info("Shutting down %s...", settings.APP_NAME)
+
+
+# Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Village-first AI Farm Intelligence Platform for Coastal & Malnad Karnataka",
     version=settings.APP_VERSION,
+    description="KrushiPragya - AI-Powered Agriculture Platform Backend API",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    lifespan=lifespan,
+)
+
+# CORS Middleware configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
-@app.get("/")
-def root():
-    return {
-        "message": "KadalaMale API is running 🌱",
-        "status": "healthy",
-    }
+# Global Exception Handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all global exception handler returning structured JSON."""
+    logger.error("Unhandled exception processing %s %s: %s", request.method, request.url.path, str(exc), exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "status": "error",
+            "message": "An internal server error occurred.",
+            "path": request.url.path,
+        },
+    )
 
 
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "service": "kadalamale-backend",
-    }
-
-
-@app.get("/db-health")
-def database_health():
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-
-        return {
-            "status": "healthy",
-            "database": "connected",
-        }
-
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "database": "connection_failed",
-            "error": str(e),
-        }
+# Register API v1 Routers
+app.include_router(health_router, prefix="/api/v1")
+app.include_router(weather_router, prefix="/api/v1")
+app.include_router(disease_router, prefix="/api/v1")

@@ -1,0 +1,1 @@
+"""KrushiPragya Backend Application Package."""

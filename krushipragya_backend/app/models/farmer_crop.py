@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import (
@@ -21,6 +21,7 @@ from app.database.base import Base
 if TYPE_CHECKING:
     from app.models.user_profile import UserProfile
     from app.models.crop import Crop
+    from app.models.crop_report import CropReport
 
 
 class FarmerCrop(Base):
@@ -87,6 +88,11 @@ class FarmerCrop(Base):
     crop: Mapped["Crop"] = relationship(
         "Crop",
         back_populates="farmer_crops",
+    )
+    crop_reports: Mapped[List["CropReport"]] = relationship(
+        "CropReport",
+        back_populates="farmer_crop",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

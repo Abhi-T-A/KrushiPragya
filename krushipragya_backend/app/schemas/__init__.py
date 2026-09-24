@@ -22,6 +22,27 @@ from app.schemas.disease import (
     ClassPrediction,
     DiseasePredictionResponse,
 )
+from app.schemas.farmer import (
+    FarmerProfileCreate,
+    FarmerProfileUpdate,
+    FarmerProfileResponse,
+)
+from app.schemas.farmer_crop import (
+    CropResponse,
+    FarmerCropCreate,
+    FarmerCropUpdate,
+    FarmerCropResponse,
+    FarmerCropWithDetailsResponse,
+)
+from app.schemas.crop_report import (
+    CropReportCreate,
+    CropReportUpdate,
+    CropReportResponse,
+    CropReportWithCropResponse,
+    CropReportImageResponse,
+    DiseasePredictionResult,
+    CropReportDiagnosisResponse,
+)
 
 __all__ = [
     "HealthResponse",
@@ -43,4 +64,19 @@ __all__ = [
     "AdvisoryExplanation",
     "ClassPrediction",
     "DiseasePredictionResponse",
+    "FarmerProfileCreate",
+    "FarmerProfileUpdate",
+    "FarmerProfileResponse",
+    "CropResponse",
+    "FarmerCropCreate",
+    "FarmerCropUpdate",
+    "FarmerCropResponse",
+    "FarmerCropWithDetailsResponse",
+    "CropReportCreate",
+    "CropReportUpdate",
+    "CropReportResponse",
+    "CropReportWithCropResponse",
+    "CropReportImageResponse",
+    "DiseasePredictionResult",
+    "CropReportDiagnosisResponse",
 ]

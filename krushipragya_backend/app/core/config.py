@@ -24,6 +24,16 @@ class Settings(BaseSettings):
         description="Base URL for OpenWeatherMap API",
     )
 
+    # Supabase Storage Configuration
+    SUPABASE_URL: Optional[str] = Field(default=None, description="Supabase project URL")
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(
+        default=None, description="Supabase service role secret key (server-side only)"
+    )
+    SUPABASE_CROP_REPORT_BUCKET: str = Field(
+        default="crop-report-images",
+        description="Supabase storage bucket for crop reports",
+    )
+
     # Disease Detection Model Configuration
     DISEASE_MODEL_DIR: str = Field(
         default="",

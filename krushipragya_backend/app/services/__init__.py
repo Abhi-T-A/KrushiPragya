@@ -46,6 +46,34 @@ from app.services.disease_detection_service import (
     ModelNotFoundError,
     InvalidCheckpointError,
 )
+from app.services.farmer_profile_service import (
+    FarmerProfileService,
+    FarmerProfileError,
+    FarmerProfileNotFoundError,
+    FarmerProfileAlreadyExistsError,
+)
+from app.services.farmer_crop_service import (
+    FarmerCropService,
+    FarmerCropError,
+    FarmerNotFoundError,
+    InactiveCropError,
+    FarmerCropAlreadyExistsError,
+    FarmerCropNotFoundError,
+)
+from app.services.crop_report_service import (
+    CropReportService,
+    CropReportError,
+    CropReportNotFoundError,
+)
+from app.services.crop_report_storage_service import (
+    CropReportStorageService,
+    CropReportStorageError,
+    UnsupportedImageTypeError,
+    ImageSizeLimitExceededError,
+    StorageServiceError,
+    get_crop_report_storage_service,
+)
+
 
 __all__ = [
     "WeatherProvider",
@@ -82,4 +110,23 @@ __all__ = [
     "InvalidImageError",
     "ModelNotFoundError",
     "InvalidCheckpointError",
+    "FarmerProfileService",
+    "FarmerProfileError",
+    "FarmerProfileNotFoundError",
+    "FarmerProfileAlreadyExistsError",
+    "FarmerCropService",
+    "FarmerCropError",
+    "FarmerNotFoundError",
+    "InactiveCropError",
+    "FarmerCropAlreadyExistsError",
+    "FarmerCropNotFoundError",
+    "CropReportService",
+    "CropReportError",
+    "CropReportNotFoundError",
+    "CropReportStorageService",
+    "CropReportStorageError",
+    "UnsupportedImageTypeError",
+    "ImageSizeLimitExceededError",
+    "StorageServiceError",
+    "get_crop_report_storage_service",
 ]

@@ -1,10 +1,11 @@
 """Pydantic schemas for Crop Report and Disease Report domain."""
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.disease import ClassPrediction
 from app.schemas.farmer_crop import CropResponse
 
 
@@ -152,4 +153,45 @@ class CropReportDiagnosisResponse(BaseModel):
     prediction: DiseasePredictionResult = Field(
         ...,
         description="Disease diagnosis prediction result",
+    )
+
+
+class CropReportDiagnosisRecordResponse(BaseModel):
+    """Schema representing a persisted crop report disease diagnosis record."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID = Field(
+        ...,
+        description="Primary key unique identifier for the diagnosis record",
+    )
+    crop_report_id: uuid.UUID = Field(
+        ...,
+        description="Foreign key referencing crop_reports.id",
+    )
+    crop: str = Field(
+        ...,
+        description="Normalized crop identifier used during disease inference",
+    )
+    predicted_class: str = Field(
+        ...,
+        description="Top-1 predicted condition label",
+    )
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Top-1 prediction confidence score between 0.0 and 1.0",
+    )
+    model_name: str = Field(
+        ...,
+        description="Model checkpoint filename or identifier used for inference",
+    )
+    predictions: List[ClassPrediction] = Field(
+        default_factory=list,
+        description="Full ranked list of class predictions and probabilities",
+    )
+    created_at: datetime = Field(
+        ...,
+        description="Timestamp when diagnosis was generated and persisted",
     )

@@ -7,6 +7,7 @@ from app.models.weather_observation import WeatherObservation
 from app.models.advisory_rule import AdvisoryRule
 
 from app.models.crop_report import CropReport
+from app.models.crop_report_diagnosis import CropReportDiagnosis
 
 __all__ = [
     "Village",
@@ -14,6 +15,7 @@ __all__ = [
     "Crop",
     "FarmerCrop",
     "CropReport",
+    "CropReportDiagnosis",
     "WeatherObservation",
     "AdvisoryRule",
 ]

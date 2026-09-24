@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import (
@@ -16,6 +16,8 @@ from app.database.base import Base
 
 if TYPE_CHECKING:
     from app.models.farmer_crop import FarmerCrop
+    from app.models.crop_report_diagnosis import CropReportDiagnosis
+
 
 
 class CropReport(Base):
@@ -70,6 +72,13 @@ class CropReport(Base):
         "FarmerCrop",
         back_populates="crop_reports",
     )
+    diagnoses: Mapped[List["CropReportDiagnosis"]] = relationship(
+        "CropReportDiagnosis",
+        back_populates="crop_report",
+        cascade="all, delete-orphan",
+        order_by="CropReportDiagnosis.created_at.desc()",
+    )
+
 
     def __repr__(self) -> str:
         return f"<CropReport(id={self.id}, farmer_crop_id={self.farmer_crop_id})>"

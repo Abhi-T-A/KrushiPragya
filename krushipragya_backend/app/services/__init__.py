@@ -73,6 +73,13 @@ from app.services.crop_report_storage_service import (
     StorageServiceError,
     get_crop_report_storage_service,
 )
+from app.services.crop_report_diagnosis_service import (
+    CropReportDiagnosisService,
+    CropReportDiagnosisServiceError,
+    CropReportImageNotFoundError,
+    get_crop_report_diagnosis_service,
+)
+
 
 
 __all__ = [
@@ -129,4 +136,8 @@ __all__ = [
     "ImageSizeLimitExceededError",
     "StorageServiceError",
     "get_crop_report_storage_service",
+    "CropReportDiagnosisService",
+    "CropReportDiagnosisServiceError",
+    "CropReportImageNotFoundError",
+    "get_crop_report_diagnosis_service",
 ]

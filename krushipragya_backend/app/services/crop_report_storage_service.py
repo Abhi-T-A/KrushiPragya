@@ -242,6 +242,46 @@ class CropReportStorageService:
             logger.warning("HTTP network failure during storage deletion: %s", exc)
             return False
 
+    def download_image(self, storage_path: str) -> bytes:
+        """Download raw image bytes from Supabase Storage for a given storage path.
+
+        Args:
+            storage_path: Internal object key in Supabase storage
+
+        Returns:
+            bytes: Raw binary content of the stored image
+
+        Raises:
+            StorageServiceError: If download fails or image is not found
+        """
+        if not storage_path:
+            raise StorageServiceError("Storage path cannot be empty.")
+
+        url = f"{self.base_url}/storage/v1/object/{self.bucket}/{storage_path}"
+        headers = {
+            "Authorization": f"Bearer {self.service_role_key}",
+            "apiKey": self.service_role_key,
+        }
+
+        try:
+            response = self.client.get(url, headers=headers)
+            if response.status_code != 200:
+                logger.error(
+                    "Storage download failed for %s with status %d: %s",
+                    storage_path,
+                    response.status_code,
+                    response.text,
+                )
+                raise StorageServiceError(
+                    f"Storage download failed with HTTP status {response.status_code}"
+                )
+            logger.info("Successfully downloaded image from storage path: %s", storage_path)
+            return response.content
+        except httpx.HTTPError as exc:
+            logger.error("HTTP network failure during storage download: %s", exc)
+            raise StorageServiceError(f"HTTP network failure during storage download: {exc}") from exc
+
+
 
 def get_crop_report_storage_service() -> CropReportStorageService:
     """Dependency provider / singleton factory for CropReportStorageService."""

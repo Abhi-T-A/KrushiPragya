@@ -256,3 +256,54 @@ def test_no_public_url_is_persisted(storage_service):
     assert not path.startswith("http://")
     assert not path.startswith("https://")
     assert path.startswith("farmers/")
+
+
+# ==============================================================================
+# Download Image Tests
+# ==============================================================================
+
+def test_download_image_success(storage_service, mock_httpx_client):
+    """Test 17: Successfully download raw image bytes."""
+    sample_bytes = b"\xff\xd8\xff\xe0mock_jpeg_content"
+    mock_httpx_client.get.return_value = MagicMock(status_code=200, content=sample_bytes)
+
+    storage_path = "farmers/uuid1/crop-reports/uuid2/photo.jpg"
+    result = storage_service.download_image(storage_path)
+
+    assert result == sample_bytes
+    mock_httpx_client.get.assert_called_once()
+    called_url = mock_httpx_client.get.call_args[0][0]
+    assert called_url == f"{storage_service.base_url}/storage/v1/object/{storage_service.bucket}/{storage_path}"
+
+
+
+def test_download_image_http_error_raises_storage_service_error(storage_service, mock_httpx_client):
+    """Test 18: Download failure (404/500) raises StorageServiceError."""
+    mock_httpx_client.get.return_value = MagicMock(status_code=404, text="Not Found")
+
+    storage_path = "farmers/uuid1/crop-reports/uuid2/photo.jpg"
+    with pytest.raises(StorageServiceError) as exc_info:
+        storage_service.download_image(storage_path)
+
+    assert "404" in str(exc_info.value)
+
+
+def test_download_image_network_failure_raises_storage_service_error(storage_service, mock_httpx_client):
+    """Test 19: Network failure raises StorageServiceError."""
+    import httpx
+    mock_httpx_client.get.side_effect = httpx.ConnectError("Network down")
+
+    storage_path = "farmers/uuid1/crop-reports/uuid2/photo.jpg"
+    with pytest.raises(StorageServiceError) as exc_info:
+        storage_service.download_image(storage_path)
+
+    assert "Network down" in str(exc_info.value)
+
+
+def test_download_image_empty_path_raises_error(storage_service):
+    """Test 20: Empty storage path raises StorageServiceError."""
+    with pytest.raises(StorageServiceError) as exc_info:
+        storage_service.download_image("")
+
+    assert "cannot be empty" in str(exc_info.value)
+

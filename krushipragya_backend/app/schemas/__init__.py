@@ -42,6 +42,7 @@ from app.schemas.crop_report import (
     CropReportImageResponse,
     DiseasePredictionResult,
     CropReportDiagnosisResponse,
+    CropReportDiagnosisRecordResponse,
 )
 
 __all__ = [
@@ -79,4 +80,5 @@ __all__ = [
     "CropReportImageResponse",
     "DiseasePredictionResult",
     "CropReportDiagnosisResponse",
+    "CropReportDiagnosisRecordResponse",
 ]

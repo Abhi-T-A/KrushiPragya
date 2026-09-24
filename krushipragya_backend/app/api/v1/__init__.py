@@ -5,6 +5,7 @@ from app.api.v1.disease import router as disease_router
 from app.api.v1.farmer import router as farmer_router
 from app.api.v1.farmer_crop import router as farmer_crop_router
 from app.api.v1.crop_report import router as crop_report_router
+from app.api.v1.crop_report_diagnosis import router as crop_report_diagnosis_router
 
 __all__ = [
     "health_router",
@@ -13,4 +14,5 @@ __all__ = [
     "farmer_router",
     "farmer_crop_router",
     "crop_report_router",
+    "crop_report_diagnosis_router",
 ]

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database.base import Base
 from app.models.crop import Crop
 from app.models.crop_report import CropReport
+from app.models.crop_report_diagnosis import CropReportDiagnosis
 from app.models.farmer_crop import FarmerCrop
 from app.models.user_profile import UserProfile
 from app.schemas.crop_report import CropReportResponse
@@ -26,10 +27,12 @@ def sqlite_session():
             Crop.__table__,
             FarmerCrop.__table__,
             CropReport.__table__,
+            CropReportDiagnosis.__table__,
         ],
     )
     with Session(engine) as session:
         yield session
+
 
 
 # ==============================================================================

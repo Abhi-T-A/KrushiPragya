@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import logging
+import os
 from typing import Any, Dict, Optional
 
 import httpx
@@ -73,10 +74,13 @@ class OpenWeatherMapProvider(WeatherProvider):
         http_client: Optional[httpx.Client] = None,
     ):
         if api_key is _DEFAULT_API_KEY:
-            self.api_key = settings.OPENWEATHER_API_KEY
+            raw_key = os.getenv("OPENWEATHER_API_KEY") or settings.OPENWEATHER_API_KEY
+            self.api_key = raw_key
         else:
             self.api_key = api_key
-        self.base_url = (base_url or settings.OPENWEATHER_BASE_URL).rstrip("/")
+        if self.api_key and isinstance(self.api_key, str):
+            self.api_key = self.api_key.strip().strip("'\"")
+        self.base_url = (base_url or os.getenv("OPENWEATHER_BASE_URL") or settings.OPENWEATHER_BASE_URL).rstrip("/")
         self._client = http_client
 
     def _get_client(self) -> httpx.Client:
@@ -375,7 +379,7 @@ class MockWeatherProvider(WeatherProvider):
 
 def get_weather_provider(provider_name: Optional[str] = None) -> WeatherProvider:
     """Factory creating weather provider instance based on settings."""
-    chosen = (provider_name or settings.WEATHER_PROVIDER).lower()
+    chosen = (provider_name or os.getenv("WEATHER_PROVIDER") or settings.WEATHER_PROVIDER).lower()
     if chosen == "openweather":
         return OpenWeatherMapProvider()
     if chosen == "mock":

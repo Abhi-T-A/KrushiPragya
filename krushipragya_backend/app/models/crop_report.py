@@ -53,6 +53,13 @@ class CropReport(Base):
         nullable=True,
         doc="Internal reference path to the stored image in storage bucket",
     )
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="UNVERIFIED",
+        server_default="UNVERIFIED",
+        nullable=False,
+        doc="Verification ladder status: UNVERIFIED, AI_ANALYSED, CORROBORATED, EXPERT_VERIFIED",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

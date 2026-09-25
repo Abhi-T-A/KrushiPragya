@@ -16,6 +16,32 @@ class Settings(BaseSettings):
     DIRECT_URL: Optional[str] = Field(default=None, description="Direct PostgreSQL connection URL for migrations")
     CORS_ORIGINS: List[str] = Field(default=["*"], description="Allowed CORS origins")
 
+    # Authentication & JWT Configuration
+    JWT_SECRET: Optional[str] = Field(
+        default=None,
+        description="Supabase project JWT secret for validating authentication tokens",
+    )
+    JWT_SECRET_KEY: Optional[str] = Field(
+        default=None,
+        description="Secret key used for signing/verifying fallback JWT tokens",
+    )
+    JWT_ALGORITHM: str = Field(default="HS256", description="Algorithm used for signing JWT tokens")
+    JWT_AUDIENCE: Optional[str] = Field(
+        default=None,
+        description="Expected JWT audience claim (e.g. 'authenticated')",
+    )
+    JWT_ISSUER: Optional[str] = Field(
+        default=None,
+        description="Expected JWT issuer claim",
+    )
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Token expiration window in minutes (default 24h)")
+
+    @property
+    def effective_jwt_secret(self) -> Optional[str]:
+        """Return configured Supabase JWT secret or fallback to secret key."""
+        return self.JWT_SECRET or self.JWT_SECRET_KEY
+
+
     # Weather Provider Configuration
     WEATHER_PROVIDER: str = Field(default="openweather", description="Active weather provider implementation")
     OPENWEATHER_API_KEY: Optional[str] = Field(default=None, description="API key for OpenWeatherMap")
@@ -32,6 +58,28 @@ class Settings(BaseSettings):
     SUPABASE_CROP_REPORT_BUCKET: str = Field(
         default="crop-report-images",
         description="Supabase storage bucket for crop reports",
+    )
+
+    # Market Data Provider Configuration (OGD India / AGMARKNET / e-NAM)
+    DATA_GOV_API_KEY: Optional[str] = Field(
+        default=None,
+        description="API key for Data.gov.in (Open Government Data Platform India)",
+    )
+    DATA_GOV_RESOURCE_ID: str = Field(
+        default="9ef84268-d588-465a-a308-a864a43d0070",
+        description="Data.gov.in dataset resource ID for Current Daily Mandi Prices",
+    )
+    DATA_GOV_BASE_URL: str = Field(
+        default="https://api.data.gov.in/resource",
+        description="Base URL for Data.gov.in resource API",
+    )
+    AGMARKNET_BASE_URL: str = Field(
+        default="https://agmarknet.gov.in",
+        description="Base URL for AGMARKNET portal",
+    )
+    ENAM_BASE_URL: str = Field(
+        default="https://enam.gov.in",
+        description="Base URL for e-NAM portal",
     )
 
     # Disease Detection Model Configuration
@@ -74,6 +122,40 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = Field(
         default="qwen3:8b",
         description="Legacy fallback for Ollama model name",
+    )
+
+    # Government Schemes Crawler & Intelligence Configuration
+    SCHEME_CRAWLER_ENABLED: bool = Field(
+        default=True,
+        description="Master switch to enable/disable automated scheme crawling",
+    )
+    SCHEME_CRAWL_INTERVAL_HOURS: int = Field(
+        default=5,
+        description="Fixed crawl interval in hours (every 5 hours)",
+    )
+    SCHEME_CRAWL_TIMEOUT_SECONDS: int = Field(
+        default=30,
+        description="Request timeout in seconds for fetching scheme pages",
+    )
+    SCHEME_MAX_PAGES_PER_SOURCE: int = Field(
+        default=100,
+        description="Maximum pages to crawl per allowlisted source",
+    )
+    SCHEME_MAX_DOCUMENT_SIZE_MB: int = Field(
+        default=10,
+        description="Maximum allowed document size in megabytes",
+    )
+    SCHEME_REQUEST_DELAY_MS: int = Field(
+        default=1000,
+        description="Delay between requests to the same source in milliseconds",
+    )
+    SCHEME_MAX_RETRIES: int = Field(
+        default=3,
+        description="Maximum retry attempts with exponential backoff",
+    )
+    SCHEME_USER_AGENT: str = Field(
+        default="KrushiPragya-SchemeBot/1.0 (+https://krushipragya.com/bot; bot@krushipragya.com)",
+        description="User-Agent header sent to government scheme portals",
     )
 
     model_config = SettingsConfigDict(

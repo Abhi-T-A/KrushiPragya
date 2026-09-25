@@ -44,7 +44,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Farmer Greeting */}
         <View style={styles.greetingBox}>
           <Text style={styles.greetingText}>
-            {language === 'kn' ? 'ನಮಸ್ಕಾರ' : 'Namaskara'}, {user?.name || 'ಅಭಿ ಗೌಡ'} 👋
+            {language === 'kn' ? 'ನಮಸ್ಕಾರ' : 'Namaskara'}, {user?.name ? (language === 'kn' ? user.name : user.name.split('(')[0].trim()) : (language === 'kn' ? 'ಅಭಿ ಗೌಡ' : 'Abhi Gowda')} 👋
           </Text>
           <Text style={styles.subGreetingText}>
             {language === 'kn'

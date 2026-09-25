@@ -10,6 +10,7 @@ import uuid
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.models.role import UserRole
 from app.models.user_profile import UserProfile
 from app.schemas.farmer import FarmerProfileCreate, FarmerProfileUpdate
 
@@ -78,6 +79,24 @@ class FarmerProfileService:
 
         try:
             db.add(profile)
+            # Ensure user has FARMER role assigned in user_roles table
+            if hasattr(db, "query"):
+                try:
+                    existing_role = (
+                        db.query(UserRole)
+                        .filter(UserRole.user_id == payload.id, UserRole.role_code == "FARMER")
+                        .first()
+                    )
+                    if existing_role is None:
+                        farmer_role = UserRole(
+                            user_id=payload.id,
+                            role_code="FARMER",
+                            status="ACTIVE",
+                        )
+                        db.add(farmer_role)
+                except Exception as role_err:
+                    logger.warning("Could not auto-assign FARMER role for %s: %s", payload.id, role_err)
+
             db.commit()
             db.refresh(profile)
             logger.info("Successfully created farmer profile for ID: %s", payload.id)

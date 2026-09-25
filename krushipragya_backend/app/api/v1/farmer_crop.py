@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthenticatedUser, verify_farmer_access
 from app.database.connection import get_db
 from app.schemas.farmer_crop import (
     CropResponse,
@@ -57,6 +58,7 @@ def list_crops(
     description="Associates a canonical crop from catalog with a farmer.",
     responses={
         201: {"description": "Farmer crop created successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or crop not found"},
         409: {"description": "Crop is inactive or already registered by farmer"},
         422: {"description": "Validation error"},
@@ -65,10 +67,11 @@ def list_crops(
 def add_farmer_crop(
     farmer_id: uuid.UUID,
     payload: FarmerCropCreate,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: FarmerCropService = Depends(get_farmer_crop_service),
 ) -> FarmerCropWithDetailsResponse:
-    """Register a new crop for the farmer."""
+    """Register a new crop for the farmer enforcing ownership and FARMER role."""
     try:
         return service.add_farmer_crop(db=db, farmer_id=farmer_id, payload=payload)
     except FarmerNotFoundError as exc:
@@ -105,16 +108,18 @@ def add_farmer_crop(
     description="Retrieves all crop relationships belonging to the specified farmer.",
     responses={
         200: {"description": "Farmer crops retrieved successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer not found"},
         422: {"description": "Validation error (e.g. malformed UUID)"},
     },
 )
 def list_farmer_crops(
     farmer_id: uuid.UUID,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: FarmerCropService = Depends(get_farmer_crop_service),
 ) -> List[FarmerCropWithDetailsResponse]:
-    """Retrieve all crops registered for a given farmer."""
+    """Retrieve all crops registered for a given farmer enforcing ownership."""
     try:
         return service.list_farmer_crops(db=db, farmer_id=farmer_id)
     except FarmerNotFoundError as exc:
@@ -133,6 +138,7 @@ def list_farmer_crops(
     description="Retrieves a specific farmer-crop relationship by relationship ID, enforcing ownership.",
     responses={
         200: {"description": "Farmer crop relationship retrieved successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or farmer crop not found"},
         422: {"description": "Validation error (e.g. malformed UUID)"},
     },
@@ -140,10 +146,11 @@ def list_farmer_crops(
 def get_farmer_crop(
     farmer_id: uuid.UUID,
     crop_id: uuid.UUID,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: FarmerCropService = Depends(get_farmer_crop_service),
 ) -> FarmerCropWithDetailsResponse:
-    """Retrieve one farmer crop relationship by ID (crop_id parameter represents the FarmerCrop ID)."""
+    """Retrieve one farmer crop relationship by ID enforcing ownership."""
     try:
         return service.get_farmer_crop(db=db, farmer_id=farmer_id, farmer_crop_id=crop_id)
     except FarmerNotFoundError as exc:
@@ -168,6 +175,7 @@ def get_farmer_crop(
     description="Updates mutable fields (area_acres, is_primary) of a farmer crop relationship.",
     responses={
         200: {"description": "Farmer crop updated successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or farmer crop not found"},
         422: {"description": "Validation error"},
     },
@@ -176,10 +184,11 @@ def update_farmer_crop(
     farmer_id: uuid.UUID,
     crop_id: uuid.UUID,
     payload: FarmerCropUpdate,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: FarmerCropService = Depends(get_farmer_crop_service),
 ) -> FarmerCropWithDetailsResponse:
-    """Update fields of an existing farmer crop relationship."""
+    """Update fields of an existing farmer crop relationship enforcing ownership."""
     try:
         return service.update_farmer_crop(
             db=db,
@@ -208,6 +217,7 @@ def update_farmer_crop(
     description="Removes a farmer crop relationship without deleting the catalog crop.",
     responses={
         204: {"description": "Farmer crop relationship deleted successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or farmer crop not found"},
         422: {"description": "Validation error (e.g. malformed UUID)"},
     },
@@ -215,10 +225,11 @@ def update_farmer_crop(
 def delete_farmer_crop(
     farmer_id: uuid.UUID,
     crop_id: uuid.UUID,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: FarmerCropService = Depends(get_farmer_crop_service),
 ) -> Response:
-    """Delete a farmer crop relationship."""
+    """Delete a farmer crop relationship enforcing ownership."""
     try:
         service.delete_farmer_crop(db=db, farmer_id=farmer_id, farmer_crop_id=crop_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)

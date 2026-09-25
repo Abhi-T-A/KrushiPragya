@@ -6,6 +6,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthenticatedUser, verify_farmer_access
 from app.database.connection import get_db
 from app.schemas.advisory import (
     FarmerAdvisoryRequest,
@@ -39,6 +40,9 @@ router = APIRouter(tags=["Farmer Advisory"])
             "description": "Farmer advisory generated successfully",
             "model": FarmerComprehensiveAdvisoryResponse,
         },
+        403: {
+            "description": "Access forbidden: insufficient role or cross-farmer access attempt",
+        },
         404: {
             "description": "Farmer or specified crop relationship not found",
         },
@@ -53,6 +57,7 @@ router = APIRouter(tags=["Farmer Advisory"])
 def generate_farmer_advisory(
     farmer_id: uuid.UUID,
     payload: Optional[FarmerAdvisoryRequest] = None,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: FarmerAdvisoryService = Depends(get_farmer_advisory_service),
 ) -> FarmerComprehensiveAdvisoryResponse:

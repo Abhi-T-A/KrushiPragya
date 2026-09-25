@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthenticatedUser, verify_farmer_access
 from app.database.connection import get_db
 from app.schemas.crop_report import CropReportDiagnosisRecordResponse
 from app.services.crop_report_diagnosis_service import (
@@ -65,6 +66,7 @@ router = APIRouter(tags=["Crop Report Diagnosis"])
 def diagnose_crop_report(
     farmer_id: uuid.UUID,
     report_id: uuid.UUID,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: CropReportDiagnosisService = Depends(get_crop_report_diagnosis_service),
 ) -> CropReportDiagnosisRecordResponse:

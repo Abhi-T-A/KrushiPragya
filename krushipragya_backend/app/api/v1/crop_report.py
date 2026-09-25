@@ -6,6 +6,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthenticatedUser, verify_farmer_access
 from app.database.connection import get_db
 from app.schemas.crop_report import (
     CropReportCreate,
@@ -50,10 +51,11 @@ def get_crop_report_service() -> CropReportService:
 def create_crop_report(
     farmer_id: uuid.UUID,
     payload: CropReportCreate,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: CropReportService = Depends(get_crop_report_service),
 ) -> CropReportResponse:
-    """Create a new crop report."""
+    """Create a new crop report enforcing ownership and FARMER role."""
     try:
         return service.create_crop_report(db=db, farmer_id=farmer_id, payload=payload)
     except FarmerNotFoundError as exc:
@@ -78,6 +80,7 @@ def create_crop_report(
     description="Retrieves all crop reports for a specific farmer crop relationship ordered newest first.",
     responses={
         200: {"description": "List of crop reports retrieved successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or farmer crop not found"},
         422: {"description": "Validation error"},
     },
@@ -88,10 +91,11 @@ def list_crop_reports(
         ...,
         description="UUID of the farmer crop relationship to list reports for",
     ),
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: CropReportService = Depends(get_crop_report_service),
 ) -> List[CropReportResponse]:
-    """List crop reports for a farmer crop."""
+    """List crop reports for a farmer crop enforcing ownership."""
     try:
         return service.list_crop_reports(
             db=db, farmer_id=farmer_id, farmer_crop_id=farmer_crop_id
@@ -118,6 +122,7 @@ def list_crop_reports(
     description="Retrieves a specific crop report by ID, strictly enforcing farmer ownership.",
     responses={
         200: {"description": "Crop report retrieved successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or crop report not found"},
         422: {"description": "Validation error"},
     },
@@ -125,10 +130,11 @@ def list_crop_reports(
 def get_crop_report(
     farmer_id: uuid.UUID,
     report_id: uuid.UUID,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: CropReportService = Depends(get_crop_report_service),
 ) -> CropReportResponse:
-    """Retrieve an individual crop report."""
+    """Retrieve an individual crop report enforcing ownership."""
     try:
         return service.get_crop_report(
             db=db, farmer_id=farmer_id, report_id=report_id
@@ -155,6 +161,7 @@ def get_crop_report(
     description="Updates editable metadata (notes, image_filename) on an existing crop report.",
     responses={
         200: {"description": "Crop report updated successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or crop report not found"},
         422: {"description": "Validation error"},
     },
@@ -163,10 +170,11 @@ def update_crop_report(
     farmer_id: uuid.UUID,
     report_id: uuid.UUID,
     payload: CropReportUpdate,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: CropReportService = Depends(get_crop_report_service),
 ) -> CropReportResponse:
-    """Partially update a crop report."""
+    """Partially update a crop report enforcing ownership."""
     try:
         return service.update_crop_report(
             db=db, farmer_id=farmer_id, report_id=report_id, payload=payload
@@ -192,6 +200,7 @@ def update_crop_report(
     description="Deletes a crop report record strictly enforcing farmer ownership.",
     responses={
         204: {"description": "Crop report deleted successfully"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or crop report not found"},
         422: {"description": "Validation error"},
     },
@@ -199,10 +208,11 @@ def update_crop_report(
 def delete_crop_report(
     farmer_id: uuid.UUID,
     report_id: uuid.UUID,
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: CropReportService = Depends(get_crop_report_service),
 ) -> Response:
-    """Delete a crop report."""
+    """Delete a crop report enforcing ownership."""
     try:
         service.delete_crop_report(
             db=db, farmer_id=farmer_id, report_id=report_id
@@ -231,6 +241,7 @@ def delete_crop_report(
     responses={
         200: {"description": "Image uploaded successfully"},
         400: {"description": "Unsupported image type or invalid image"},
+        403: {"description": "Access forbidden: insufficient role or cross-farmer access attempt"},
         404: {"description": "Farmer or crop report not found"},
         413: {"description": "File exceeds maximum size of 10 MB"},
         422: {"description": "Validation error"},
@@ -241,6 +252,7 @@ def upload_crop_report_image(
     farmer_id: uuid.UUID,
     report_id: uuid.UUID,
     file: UploadFile = File(...),
+    auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),
     service: CropReportService = Depends(get_crop_report_service),
 ) -> CropReportResponse:

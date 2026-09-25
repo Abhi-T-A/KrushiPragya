@@ -16,6 +16,7 @@ if "auth.users" not in Base.metadata.tables:
 if TYPE_CHECKING:
     from app.models.village import Village
     from app.models.farmer_crop import FarmerCrop
+    from app.models.role import UserRole
 
 
 class UserProfile(Base):
@@ -80,6 +81,11 @@ class UserProfile(Base):
     farmer_crops: Mapped[List["FarmerCrop"]] = relationship(
         "FarmerCrop",
         back_populates="farmer",
+        cascade="all, delete-orphan",
+    )
+    user_roles: Mapped[List["UserRole"]] = relationship(
+        "UserRole",
+        back_populates="user",
         cascade="all, delete-orphan",
     )
 

@@ -323,14 +323,16 @@ def market_setup():
         session.add(c)
         crops[code] = c
 
-    # 2. Add OGD Data Source
+    # 2. Add OGD Data Source (Marked as DEMO_SEEDED for Hackathon)
     source = MarketDataSource(
         id=uuid.uuid4(),
         code="OGD_INDIA",
-        name="Open Government Data Platform India - DMI",
-        source_type="GOVERNMENT_OGD",
+        name="Demo Benchmark Mandi Rates (Hackathon Demo Seed)",
+        source_type="DEMO_SEEDED",
         base_url="https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070",
-        sync_status="SUCCESS",
+        sync_status="SEEDED_DEMO",
+        is_demo=True,
+        data_mode="DEMO_SEEDED",
         is_active=True,
     )
     session.add(source)
@@ -404,6 +406,8 @@ def market_setup():
             max_price=modal + Decimal("3000"),
             arrival_quantity=Decimal("150.0"),
             unit="Quintal",
+            is_seeded=True,
+            data_mode="DEMO_SEEDED",
         )
         session.add(rec)
 
@@ -458,13 +462,17 @@ def test_list_supported_market_crops(market_setup):
 
 
 def test_list_market_data_sources(market_setup):
-    """Verify provenance data sources are exposed."""
+    """Verify provenance data sources are exposed and demo sources clearly marked."""
     response = client.get("/api/v1/market/sources")
     assert response.status_code == status.HTTP_200_OK
     sources = response.json()
     assert len(sources) >= 1
     codes = [s["code"] for s in sources]
     assert "OGD_INDIA" in codes
+    ogd_src = next(s for s in sources if s["code"] == "OGD_INDIA")
+    assert ogd_src["source_type"] == "DEMO_SEEDED"
+    assert ogd_src["sync_status"] == "SEEDED_DEMO"
+    assert ogd_src["is_demo"] is True
 
 
 def test_discover_nearby_mandis(market_setup):
@@ -487,6 +495,8 @@ def test_discover_nearby_mandis(market_setup):
     if first_mandi["latest_price"]:
         assert first_mandi["latest_price"]["modal"] > 0
         assert first_mandi["latest_price"]["min"] <= first_mandi["latest_price"]["modal"] <= first_mandi["latest_price"]["max"]
+        assert first_mandi["latest_price"]["is_seeded"] is True
+        assert first_mandi["latest_price"]["data_mode"] == "DEMO_SEEDED"
 
 
 def test_mandi_detail_and_15_day_intelligence(market_setup):
@@ -507,10 +517,13 @@ def test_mandi_detail_and_15_day_intelligence(market_setup):
     assert intel["trend"] in ("UP", "DOWN", "STABLE")
     assert isinstance(intel["change_percent"], float)
     assert len(intel["history"]) >= 10
+    assert intel["is_seeded"] is True
+    assert intel["data_mode"] == "DEMO_SEEDED"
+    assert "Demo" in intel["source_name"]
 
 
 def test_mandi_price_history_endpoint(market_setup):
-    """Verify price history endpoint returns daily timeline."""
+    """Verify price history endpoint returns daily timeline with demo provenance."""
     mandi = market_setup["mandi_puttur"]
     arecanut = market_setup["arecanut"]
 
@@ -519,6 +532,8 @@ def test_mandi_price_history_endpoint(market_setup):
     data = response.json()
     assert "history" in data
     assert len(data["history"]) >= 10
+    assert data["history"][0]["is_seeded"] is True
+    assert data["history"][0]["data_mode"] == "DEMO_SEEDED"
 
 
 # ==============================================================================

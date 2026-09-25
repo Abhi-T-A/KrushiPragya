@@ -54,6 +54,8 @@ class PriceService:
             unit=latest_record.unit.lower(),
             date=latest_record.arrival_date,
             arrival_quantity=latest_record.arrival_quantity,
+            is_seeded=getattr(latest_record, "is_seeded", True),
+            data_mode=getattr(latest_record, "data_mode", "DEMO_SEEDED"),
         )
 
     def get_15_day_intelligence(
@@ -129,6 +131,8 @@ class PriceService:
                     arrival_quantity=r.arrival_quantity,
                     variety=r.variety,
                     unit=r.unit.lower(),
+                    is_seeded=getattr(r, "is_seeded", True),
+                    data_mode=getattr(r, "data_mode", "DEMO_SEEDED"),
                 )
             )
             modal_prices.append(r.modal_price)
@@ -171,6 +175,10 @@ class PriceService:
         else:
             trend = "STABLE"
 
+        is_seeded = getattr(current_record, "is_seeded", True)
+        data_mode = getattr(current_record, "data_mode", "DEMO_SEEDED")
+        source_name = "Demo Benchmark Mandi Rates" if is_seeded else "Open Government Data (OGD)"
+
         return PriceIntelligenceResponse(
             crop=crop.name_en,
             crop_id=crop.id,
@@ -187,4 +195,7 @@ class PriceService:
             price_date=current_record.arrival_date,
             unit=current_record.unit.lower(),
             history=history_items,
+            is_seeded=is_seeded,
+            data_mode=data_mode,
+            source_name=source_name,
         )

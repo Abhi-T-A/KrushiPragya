@@ -56,6 +56,20 @@ class MarketDataSource(Base):
         nullable=False,
         doc="Whether this data source is actively polled",
     )
+    is_demo: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+        doc="Whether this data source provides benchmark demo seeded data rather than live feeds",
+    )
+    data_mode: Mapped[str] = mapped_column(
+        String(20),
+        default="LIVE",
+        server_default="LIVE",
+        nullable=False,
+        doc="Data mode: LIVE or DEMO_SEEDED",
+    )
     last_success_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

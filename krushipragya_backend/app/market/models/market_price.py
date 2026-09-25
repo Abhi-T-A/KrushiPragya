@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 import uuid
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint, func, text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -123,6 +123,20 @@ class MarketPriceRecord(Base):
         server_default="Quintal",
         nullable=False,
         doc="Pricing unit (typically Quintal = 100 kg, or Thousand for Coconut)",
+    )
+    is_seeded: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default=text("true"),
+        nullable=False,
+        doc="True if record is benchmark/demo seeded data; False if verified live government sync",
+    )
+    data_mode: Mapped[str] = mapped_column(
+        String(20),
+        default="DEMO_SEEDED",
+        server_default="DEMO_SEEDED",
+        nullable=False,
+        doc="Provenance mode: DEMO_SEEDED or LIVE",
     )
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -20,6 +20,8 @@ class LatestPriceInfo(BaseModel):
     unit: str = Field(default="quintal", description="Unit of pricing (e.g. quintal)")
     price_date: date = Field(..., alias="date", serialization_alias="date", description="Official price quotation date")
     arrival_quantity: Optional[Decimal] = Field(default=None, description="Arrival quantity")
+    is_seeded: bool = Field(default=True, description="True if quote is from demo benchmark seed; False if live government sync")
+    data_mode: str = Field(default="DEMO_SEEDED", description="Data provenance mode: LIVE or DEMO_SEEDED")
 
     @property
     def min(self) -> Decimal:
@@ -91,6 +93,8 @@ class MarketPriceRecordResponse(BaseModel):
     arrival_quantity: Decimal
     unit: str
     fetched_at: datetime
+    is_seeded: bool = True
+    data_mode: str = "DEMO_SEEDED"
 
 
 class PriceHistoryItem(BaseModel):
@@ -104,6 +108,8 @@ class PriceHistoryItem(BaseModel):
     arrival_quantity: Decimal
     variety: str
     unit: str
+    is_seeded: bool = True
+    data_mode: str = "DEMO_SEEDED"
 
     @property
     def date(self) -> date:
@@ -127,6 +133,9 @@ class PriceIntelligenceResponse(BaseModel):
     price_date: date = Field(..., description="Date of latest official price quotation")
     unit: str = Field(default="quintal")
     history: List[PriceHistoryItem] = Field(default_factory=list)
+    is_seeded: bool = Field(default=True, description="True if based on demo benchmark seed; False if live government sync")
+    data_mode: str = Field(default="DEMO_SEEDED", description="Data provenance mode: LIVE or DEMO_SEEDED")
+    source_name: Optional[str] = Field(default="Demo Benchmark Mandi Rates", description="Data source name")
 
 
 class MarketDetailResponse(BaseModel):
@@ -154,6 +163,8 @@ class ReferenceMandiPrice(BaseModel):
     max_price: Decimal
     price_date: date
     unit: str = "quintal"
+    is_seeded: bool = Field(default=True, description="True if reference is demo benchmark seed; False if live sync")
+    data_mode: str = Field(default="DEMO_SEEDED", description="Data provenance mode: LIVE or DEMO_SEEDED")
 
 
 # ==============================================================================
@@ -269,6 +280,8 @@ class MarketDataSourceResponse(BaseModel):
     last_failure_at: Optional[datetime] = None
     last_sync_at: Optional[datetime] = None
     sync_status: str
+    is_demo: bool = False
+    data_mode: str = "LIVE"
     last_error: Optional[str] = None
 
 

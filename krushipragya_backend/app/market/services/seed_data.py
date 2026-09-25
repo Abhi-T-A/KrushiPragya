@@ -209,10 +209,12 @@ def seed_market_master_data(db: Session) -> Dict[str, int]:
     sources_to_seed = [
         {
             "code": "OGD_INDIA",
-            "name": "Open Government Data (OGD) Platform India - DMI",
-            "source_type": "GOVERNMENT_OGD",
+            "name": "Demo Benchmark Mandi Rates (Hackathon Demo Seed)",
+            "source_type": "DEMO_SEEDED",
             "base_url": "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070",
-            "sync_status": "SUCCESS",
+            "sync_status": "SEEDED_DEMO",
+            "is_demo": True,
+            "data_mode": "DEMO_SEEDED",
             "last_success_at": now - timedelta(hours=3),
             "last_sync_at": now - timedelta(hours=3),
         },
@@ -317,7 +319,7 @@ def seed_market_master_data(db: Session) -> Dict[str, int]:
                     market_id=mandi_obj.id,
                     crop_id=crop_obj.id,
                     source_id=ogd_src.id if ogd_src else None,
-                    source_record_id=f"OGD-{mandi_code}-{crop_code}-{arrival_dt.isoformat()}",
+                    source_record_id=f"DEMO-OGD-{mandi_code}-{crop_code}-{arrival_dt.isoformat()}",
                     arrival_date=arrival_dt,
                     commodity_raw=crop_obj.name_en,
                     variety=variety,
@@ -328,6 +330,8 @@ def seed_market_master_data(db: Session) -> Dict[str, int]:
                     arrival_quantity=Decimal(str(qty)),
                     unit=unit,
                     fetched_at=now,
+                    is_seeded=True,
+                    data_mode="DEMO_SEEDED",
                 )
                 db.add(prec)
                 prices_inserted += 1

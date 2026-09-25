@@ -133,6 +133,8 @@ class MarketIngestionService:
                     existing_record.modal_price = raw.modal_price
                     existing_record.arrival_quantity = raw.arrival_quantity
                     existing_record.fetched_at = now
+                    existing_record.is_seeded = False
+                    existing_record.data_mode = "LIVE"
                 else:
                     new_prec = MarketPriceRecord(
                         id=uuid.uuid4(),
@@ -150,11 +152,15 @@ class MarketIngestionService:
                         arrival_quantity=raw.arrival_quantity,
                         unit=raw.unit or "Quintal",
                         fetched_at=now,
+                        is_seeded=False,
+                        data_mode="LIVE",
                     )
                     db.add(new_prec)
                     records_persisted += 1
 
             source.sync_status = "SUCCESS"
+            source.is_demo = False
+            source.data_mode = "LIVE"
             source.last_success_at = now
             source.last_sync_at = now
             source.last_error = None

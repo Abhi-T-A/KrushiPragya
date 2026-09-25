@@ -242,4 +242,6 @@ class ProduceListingService:
             max_price=best_record.max_price,
             price_date=best_record.arrival_date,
             unit=best_record.unit.lower(),
+            is_seeded=getattr(best_record, "is_seeded", True),
+            data_mode=getattr(best_record, "data_mode", "DEMO_SEEDED"),
         )

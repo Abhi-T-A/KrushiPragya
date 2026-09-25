@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   View,
   Text,
@@ -9,45 +9,55 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../context/LanguageContext';
-import { useAuth } from '../../context/AuthContext';
-import { useReports } from '../../context/ReportContext';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
+import { useAuth, UserRole } from '../../context/AuthContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
 import {
   ArrowLeft,
   User,
   MapPin,
-  Trees,
-  Sprout,
-  ShieldCheck,
   Globe2,
-  FileText,
-  Info,
   LogOut,
-  ChevronRight,
   Sparkles,
   Award,
+  Sprout,
+  Microscope,
+  Landmark,
+  Store,
+  Users,
+  CheckCircle2,
 } from 'lucide-react-native';
 
 interface ProfileScreenProps {
   navigation: any;
 }
 
+const ROLES_LIST: { role: UserRole; titleEn: string; titleKn: string; Icon: any; color: string }[] = [
+  { role: 'farmer', titleEn: 'Farmer (Mallikarjuna)', titleKn: 'ರೈತ (ಮಲ್ಲಿಕಾರ್ಜುನ)', Icon: Sprout, color: '#16A34A' },
+  { role: 'expert', titleEn: 'Agri Expert (Dr. Ramesh)', titleKn: 'ಕೃಷಿ ತಜ್ಞ (ಡಾ. ರಮೇಶ್)', Icon: Microscope, color: '#2563EB' },
+  { role: 'officer', titleEn: 'Govt Officer (Sunitha IAS)', titleKn: 'ಕೃಷಿ ಅಧಿಕಾರಿ (ಸುನಿತಾ)', Icon: Landmark, color: '#9333EA' },
+  { role: 'buyer', titleEn: 'Buyer / Trader (Rajesh Seth)', titleKn: 'ವರ್ತಕ (ರಾಜೇಶ್ ಸೇಠ್)', Icon: Store, color: '#D97706' },
+  { role: 'community', titleEn: 'Community / FPO (Suresh Gowda)', titleKn: 'ಸಮುದಾಯ (ಸುರೇಶ್ ಗೌಡ)', Icon: Users, color: '#0D9488' },
+];
+
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { language, setLanguage } = useLanguage();
-  const { user, logout } = useAuth();
-  const { reports } = useReports();
+  const { user, setRole, logout } = useAuth();
+
+  const isKn = language === 'kn';
 
   const handleLogout = () => {
     Alert.alert(
-      language === 'kn' ? 'ಲಾಗ್‌ಔಟ್' : 'Logout',
-      language === 'kn'
-        ? 'ನೀವು ಖಾತೆಯಿಂದ ನಿರ್ಗಮಿಸಲು ಖಚಿತವಾಗಿ ಬಯಸುವಿರಾ?'
-        : 'Are you sure you want to logout?',
+      isKn ? 'ಲಾಗ್‌ಔಟ್' : 'Logout',
+      isKn ? 'ನೀವು ಖಾತೆಯಿಂದ ಲಾಗ್‌ಔಟ್ ಮಾಡಲು ಬಯಸುವಿರಾ?' : 'Are you sure you want to logout and change role?',
       [
-        { text: language === 'kn' ? 'ರದ್ದುಮಾಡಿ' : 'Cancel', style: 'cancel' },
-        { text: language === 'kn' ? 'ಹೌದು, ಲಾಗ್‌ಔಟ್' : 'Logout', style: 'destructive', onPress: () => logout() },
+        { text: isKn ? 'ರದ್ದುಮಾಡಿ' : 'Cancel', style: 'cancel' },
+        {
+          text: isKn ? 'ಹೌದು, ಲಾಗ್‌ಔಟ್' : 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+          },
+        },
       ]
     );
   };
@@ -62,155 +72,128 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <ArrowLeft size={22} color={Colors.textPrimary} />
+            <ArrowLeft size={20} color={Colors.textPrimary} />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>
-            {language === 'kn' ? 'ನನ್ನ ಪ್ರೊಫೈಲ್' : 'My Profile'}
+            {isKn ? 'ನನ್ನ ಪ್ರೊಫೈಲ್' : 'My Profile & Persona'}
           </Text>
 
-          <View style={{ width: 40 }} />
+          <View style={{ width: 36 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Farmer Info Hero Card */}
-          <Card variant="trust" style={styles.profileHeroCard}>
+          {/* User Profile Card */}
+          <View style={styles.profileCard}>
             <View style={styles.profileRow}>
               <View style={styles.avatarCircle}>
-                <User size={36} color={Colors.primary} />
+                <User size={30} color={Colors.primary} />
               </View>
 
               <View style={styles.profileTextCol}>
-                <Text style={styles.farmerName}>{user?.name || 'ಅಭಿ ಗೌಡ'}</Text>
+                <Text style={styles.farmerName}>
+                  {isKn && user?.nameKn ? user.nameKn : (user?.name || 'Mallikarjuna Gowda')}
+                </Text>
                 <Text style={styles.phoneNumber}>{user?.phone || '+91 98765 43210'}</Text>
                 <View style={styles.villageLocationRow}>
-                  <MapPin size={13} color={Colors.primary} />
+                  <MapPin size={12} color={Colors.primary} />
                   <Text style={styles.villageLocationText}>
-                    {user?.villageName || 'Ujire'} · {user?.farmSizeAcres || '2.5'} {language === 'kn' ? 'ಎಕರೆ' : 'Acres'}
+                    {user?.villageName || 'Ujire'} • {user?.roleTitleEn || 'Farmer'}
                   </Text>
                 </View>
               </View>
             </View>
 
-            {/* Progressive Farmer Trust Tag */}
-            <View style={styles.progressiveBadge}>
-              <Award size={16} color={Colors.primaryDark} />
-              <Text style={styles.progressiveBadgeText}>
-                {language === 'kn'
-                  ? 'ದೃಢೀಕೃತ ಪ್ರಗತಿಪರ ರೈತ (Verified Farmer)'
-                  : 'Verified Progressive Farmer'}
+            <View style={styles.verifiedTag}>
+              <Award size={14} color="#15803D" />
+              <Text style={styles.verifiedTagText}>
+                {isKn ? 'ಧೃಢೀಕರಿಸಲ್ಪಟ್ಟ ಕೃಷಿಪ್ರಜ್ಞಾ ಬಳಕೆದಾರ' : 'Verified KrushiPragya Stakeholder'}
               </Text>
             </View>
-          </Card>
+          </View>
 
-          {/* Registered Crops Overview */}
+          {/* Switch Active Role */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {language === 'kn' ? 'ನೋಂದಾಯಿತ ಬೆಳೆಗಳು' : 'Registered Crops'}
+              {isKn ? 'ಪಾತ್ರ ಬದಲಾಯಿಸಿ (Switch Role for Demo)' : 'Switch Active Role'}
             </Text>
           </View>
 
-          <Card style={styles.cropsCard}>
-            <View style={styles.cropItemRow}>
-              <Text style={styles.cropEmoji}>🌴</Text>
-              <View style={styles.cropInfoCol}>
-                <Text style={styles.cropTitle}>{language === 'kn' ? 'ಅಡಿಕೆ (Arecanut)' : 'Arecanut'}</Text>
-                <Text style={styles.cropSubtitle}>2.0 {language === 'kn' ? 'ಎಕರೆ' : 'Acres'} · {language === 'kn' ? 'ಮುಖ್ಯ ಬೆಳೆ' : 'Main Crop'}</Text>
-              </View>
-              <View style={styles.healthyBadge}>
-                <Text style={styles.healthyBadgeText}>● {language === 'kn' ? 'ಆರೋಗ್ಯಕರ' : 'Healthy'}</Text>
-              </View>
-            </View>
+          <View style={styles.roleSelectionBox}>
+            {ROLES_LIST.map((item) => {
+              const isSelected = user?.role === item.role;
+              const { Icon, color, titleEn, titleKn } = item;
 
-            <View style={styles.divider} />
+              return (
+                <TouchableOpacity
+                  key={item.role}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setRole(item.role);
+                    Alert.alert(
+                      isKn ? 'ಪಾತ್ರ ಬದಲಾಗಿದೆ ✅' : 'Role Switched ✅',
+                      isKn
+                        ? `${titleKn} ಪಾತ್ರಕ್ಕೆ ಯಶಸ್ವಿಯಾಗಿ ಬದಲಾಯಿಸಲಾಗಿದೆ.`
+                        : `Switched to ${titleEn} persona.`
+                    );
+                  }}
+                  style={[
+                    styles.roleItem,
+                    isSelected && { borderColor: color, borderWidth: 1.5, backgroundColor: '#F8FAFC' },
+                  ]}
+                >
+                  <View style={[styles.roleIconBox, { backgroundColor: `${color}15` }]}>
+                    <Icon size={16} color={color} strokeWidth={2.4} />
+                  </View>
+                  <Text style={[styles.roleLabel, isSelected && { color: color, fontWeight: '800' }]}>
+                    {isKn ? titleKn : titleEn}
+                  </Text>
+                  {isSelected && <CheckCircle2 size={16} color={color} strokeWidth={2.4} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-            <View style={styles.cropItemRow}>
-              <Text style={styles.cropEmoji}>🌾</Text>
-              <View style={styles.cropInfoCol}>
-                <Text style={styles.cropTitle}>{language === 'kn' ? 'ಭತ್ತ (Paddy)' : 'Paddy'}</Text>
-                <Text style={styles.cropSubtitle}>0.5 {language === 'kn' ? 'ಎಕರೆ' : 'Acres'}</Text>
-              </View>
-              <View style={[styles.healthyBadge, { backgroundColor: Colors.aiAnalysedBg }]}>
-                <Text style={[styles.healthyBadgeText, { color: Colors.aiAnalysed }]}>● {language === 'kn' ? 'ಗಮನ ಅಗತ್ಯ' : 'Monitoring'}</Text>
-              </View>
-            </View>
-          </Card>
-
-          {/* Profile Actions & Settings Menu */}
+          {/* Language Preference */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {language === 'kn' ? 'ಸೆಟ್ಟಿಂಗ್ಸ್ ಮತ್ತು ವಿವರ' : 'Settings & Options'}
+              {isKn ? 'ಭಾಷಾ ಆದ್ಯತೆ' : 'Language Preference'}
             </Text>
           </View>
 
-          <Card style={styles.menuCard}>
-            {/* Language Toggle */}
+          <View style={styles.langBox}>
             <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setLanguage(language === 'kn' ? 'en' : 'kn')}
-              style={styles.menuItem}
+              activeOpacity={0.8}
+              onPress={() => setLanguage('kn')}
+              style={[styles.langChoice, isKn && styles.activeLangChoice]}
             >
-              <View style={[styles.menuIconBg, { backgroundColor: Colors.primaryLight }]}>
-                <Globe2 size={18} color={Colors.primary} />
-              </View>
-              <View style={styles.menuTextCol}>
-                <Text style={styles.menuTitle}>{language === 'kn' ? 'ಭಾಷೆ (Language)' : 'App Language'}</Text>
-                <Text style={styles.menuSubtitle}>{language === 'kn' ? 'ಪ್ರಸ್ತುತ: ಕನ್ನಡ' : 'Current: English'}</Text>
-              </View>
-              <ChevronRight size={18} color={Colors.textMuted} />
+              <Text style={[styles.langChoiceText, isKn && styles.activeLangText]}>
+                ಕನ್ನಡ (Kannada)
+              </Text>
+              {isKn && <CheckCircle2 size={16} color="#16A34A" />}
             </TouchableOpacity>
 
-            <View style={styles.divider} />
-
-            {/* My Past Reports */}
             <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('HistoryTab')}
-              style={styles.menuItem}
+              activeOpacity={0.8}
+              onPress={() => setLanguage('en')}
+              style={[styles.langChoice, !isKn && styles.activeLangChoice]}
             >
-              <View style={[styles.menuIconBg, { backgroundColor: '#FEF3C7' }]}>
-                <FileText size={18} color={Colors.accentGold} />
-              </View>
-              <View style={styles.menuTextCol}>
-                <Text style={styles.menuTitle}>{language === 'kn' ? 'ನನ್ನ ಬೆಳೆ ವರದಿಗಳು' : 'My Crop Reports'}</Text>
-                <Text style={styles.menuSubtitle}>{reports.length} {language === 'kn' ? 'ವರದಿಗಳು ದಾಖಲಾಗಿವೆ' : 'reports recorded'}</Text>
-              </View>
-              <ChevronRight size={18} color={Colors.textMuted} />
+              <Text style={[styles.langChoiceText, !isKn && styles.activeLangText]}>
+                English
+              </Text>
+              {!isKn && <CheckCircle2 size={16} color="#16A34A" />}
             </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            {/* About KrushiPragya */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() =>
-                Alert.alert(
-                  'KrushiPragya (ಕೃಷಿಪ್ರಜ್ಞಾ)',
-                  'AI-Powered Agriculture Platform for Coastal & Malnad Karnataka.\nVersion 1.0.0 (SDMIT Innovate-A-Thon 2026)'
-                )
-              }
-              style={styles.menuItem}
-            >
-              <View style={[styles.menuIconBg, { backgroundColor: Colors.trustPurpleLight }]}>
-                <Info size={18} color={Colors.trustPurple} />
-              </View>
-              <View style={styles.menuTextCol}>
-                <Text style={styles.menuTitle}>{language === 'kn' ? 'ಕೃಷಿಪ್ರಜ್ಞಾ ಬಗ್ಗೆ' : 'About KrushiPragya'}</Text>
-                <Text style={styles.menuSubtitle}>v1.0.0 (Coastal & Malnad Network)</Text>
-              </View>
-              <ChevronRight size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </Card>
+          </View>
 
           {/* Logout Button */}
           <TouchableOpacity
-            activeOpacity={0.8}
+            activeOpacity={0.85}
             onPress={handleLogout}
-            style={styles.logoutButton}
+            style={styles.logoutBtn}
           >
-            <LogOut size={18} color={Colors.alertHigh} />
-            <Text style={styles.logoutButtonText}>
-              {language === 'kn' ? 'ಖಾತೆಯಿಂದ ನಿರ್ಗಮಿಸಿ (Logout)' : 'Logout'}
+            <LogOut size={16} color="#DC2626" />
+            <Text style={styles.logoutBtnText}>
+              {isKn ? 'ಲಾಗ್‌ಔಟ್ ಮಾಡಿ & ಪಾತ್ರ ಆಯ್ಕೆಮಾಡಿ' : 'Logout & Choose Role'}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -226,194 +209,178 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.background,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   headerTitle: {
-    ...Typography.title1,
-    fontSize: 20,
-    color: Colors.textPrimary,
+    fontSize: 16,
     fontWeight: '800',
+    color: '#0F172A',
   },
   scrollContent: {
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
-    gap: Spacing.md,
+    padding: Spacing.md,
+    paddingBottom: 40,
   },
-  profileHeroCard: {
-    backgroundColor: Colors.surface,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    marginBottom: Spacing.md,
   },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: 12,
   },
   avatarCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: Colors.primaryLight,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#BFE7D7',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
   },
   profileTextCol: {
     flex: 1,
-    gap: 2,
   },
   farmerName: {
-    ...Typography.title1,
-    fontSize: 22,
-    color: Colors.textPrimary,
+    fontSize: 16,
     fontWeight: '800',
+    color: '#0F172A',
   },
   phoneNumber: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 1,
   },
   villageLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
+    marginTop: 3,
   },
   villageLocationText: {
-    ...Typography.caption,
-    fontWeight: '700',
-    color: Colors.primaryDark,
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
   },
-  progressiveBadge: {
+  verifiedTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
-    borderWidth: 1,
-    borderColor: '#BFE7D7',
+    backgroundColor: '#DCFCE7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 12,
   },
-  progressiveBadgeText: {
-    ...Typography.caption,
-    fontWeight: '800',
-    color: Colors.primaryDark,
+  verifiedTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
   },
   sectionHeader: {
-    marginTop: Spacing.xs,
-    marginBottom: -4,
+    marginBottom: 8,
   },
   sectionTitle: {
-    ...Typography.title2,
-    fontSize: 16,
-    color: Colors.textPrimary,
+    fontSize: 14,
     fontWeight: '800',
+    color: '#1E293B',
   },
-  cropsCard: {
-    padding: Spacing.md,
-    gap: Spacing.sm,
+  roleSelectionBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 8,
+    gap: 6,
+    marginBottom: Spacing.md,
   },
-  cropItemRow: {
+  roleItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    gap: 10,
   },
-  cropEmoji: {
-    fontSize: 28,
-  },
-  cropInfoCol: {
-    flex: 1,
-  },
-  cropTitle: {
-    ...Typography.bodyLarge,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  cropSubtitle: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  healthyBadge: {
-    backgroundColor: Colors.expertVerifiedBg,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-  },
-  healthyBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: Colors.expertVerified,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 4,
-  },
-  menuCard: {
-    padding: Spacing.xs,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.sm + 2,
-    gap: Spacing.md,
-  },
-  menuIconBg: {
-    width: 38,
-    height: 38,
-    borderRadius: BorderRadius.md,
+  roleIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuTextCol: {
+  roleLabel: {
     flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
   },
-  menuTitle: {
-    ...Typography.bodyLarge,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+  langBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 8,
+    gap: 6,
+    marginBottom: Spacing.lg,
   },
-  menuSubtitle: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: 1,
+  langChoice: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
   },
-  logoutButton: {
+  activeLangChoice: {
+    backgroundColor: '#F0FDF4',
+  },
+  langChoiceText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  activeLangText: {
+    color: '#16A34A',
+    fontWeight: '800',
+  },
+  logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.alertHighBg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1.5,
-    borderColor: '#FECDD3',
-    marginTop: Spacing.xs,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    paddingVertical: 12,
+    borderRadius: 10,
   },
-  logoutButtonText: {
-    ...Typography.bodyLarge,
-    color: Colors.alertHigh,
+  logoutBtnText: {
+    fontSize: 13,
     fontWeight: '800',
+    color: '#DC2626',
   },
 });

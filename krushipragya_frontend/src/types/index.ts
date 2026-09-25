@@ -1,6 +1,6 @@
 export interface CropReport {
   id: string;
-  crop: 'arecanut' | 'paddy' | 'coconut' | 'cardamom';
+  crop: 'arecanut' | 'paddy' | 'coconut' | 'cardamom' | 'pepper' | 'ginger' | 'turmeric' | string;
   cropNameKn: string;
   cropNameEn: string;
   photoUri?: string;
@@ -12,13 +12,13 @@ export interface CropReport {
   status: 'unverified' | 'ai_analysed' | 'corroborated' | 'expert_verified';
   villageId: string;
   villageName: string;
-  reporterRole: 'farmer' | 'village_node';
-  proxyFor?: string; // Farmer name if entered by village node
+  reporterRole: 'farmer' | 'village_node' | 'expert' | 'officer' | 'buyer' | 'community';
+  proxyFor?: string;
   createdAt: string;
   remedyKn?: string;
   remedyEn?: string;
   sourceInstitution?: string;
-  evidenceFarmsCount?: number; // e.g., 3 independent farms
+  evidenceFarmsCount?: number;
   verifiedBy?: string;
   verifiedAt?: string;
 }
@@ -38,7 +38,18 @@ export interface WeatherRisk {
   tempMax: number;
   rainfallMm: number;
   validUntil: string;
-  source: string;
+  source?: string;
+}
+
+export interface MandiPrice {
+  crop: string;
+  cropKn: string;
+  market: string;
+  marketKn: string;
+  pricePerQuintal: number;
+  changePercent: number;
+  isPositive: boolean;
+  date: string;
 }
 
 export interface MarketPrice {
@@ -64,4 +75,31 @@ export interface Scheme {
   benefitEn: string;
   officialSourceUrl: string;
   lastVerified: string;
+}
+
+export interface DiseaseKnowledge {
+  id: string;
+  crop: string;
+  diseaseEn: string;
+  diseaseKn: string;
+  scientificName: string;
+  symptomsEn: string;
+  symptomsKn: string;
+  favorableConditionsEn: string;
+  favorableConditionsKn: string;
+  organicRemedyEn: string;
+  organicRemedyKn: string;
+  chemicalRemedyEn: string;
+  chemicalRemedyKn: string;
+  dosageEn: string;
+  dosageKn: string;
+  stageRecommendations: {
+    earlyEn: string;
+    earlyKn: string;
+    moderateEn: string;
+    moderateKn: string;
+    severeEn: string;
+    severeKn: string;
+  };
+  source: string;
 }

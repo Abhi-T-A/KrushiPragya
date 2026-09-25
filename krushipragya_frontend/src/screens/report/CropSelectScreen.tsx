@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { Header } from '../../components/common/Header';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
-import { ArrowRight } from 'lucide-react-native';
+import { ArrowRight, Sparkles } from 'lucide-react-native';
 
 export interface SupportedCrop {
   id: string;
@@ -24,22 +24,22 @@ export interface SupportedCrop {
 
 export const SUPPORTED_CROPS: SupportedCrop[] = [
   {
-    id: 'arecanut',
-    emoji: '🌴',
-    nameKn: 'ಅಡಿಕೆ',
-    nameEn: 'Arecanut',
-    diseasesKn: 'ಮಹಾಳಿ/ಕೊಳೆರೋಗ, ಹಳದಿ ಎಲೆ ರೋಗ, ಸುಳಿ ಕೊಳೆ, ಅನಬೆ ರೋಗ',
-    diseasesEn: 'Koleroga (Fruit Rot), Yellow Leaf Disease, Bud Rot, Anabe Roga',
-    accentColor: Colors.primary,
-    bgColor: Colors.primaryLight,
-  },
-  {
     id: 'paddy',
     emoji: '🌾',
     nameKn: 'ಭತ್ತ',
     nameEn: 'Paddy',
-    diseasesKn: 'ಬ್ಲಾಸ್ಟ್ ರೋಗ, ಬ್ಯಾಕ್ಟೀರಿಯಲ್ ಎಲೆ ಉರಿ, ಕಂದು ಜಿಗಿಹುಳು, ಸೀತ್ ಬ್ಲೈಟ್',
-    diseasesEn: 'Blast Disease, Bacterial Leaf Blight, Brown Plant Hopper, Sheath Blight',
+    diseasesKn: 'ಬೆಂಕಿ ರೋಗ (ಬ್ಲಾಸ್ಟ್), ಎಲೆ ಒಣಗು ರೋಗ, ಕಂದು ಜಿಗಿ ಹುಳು',
+    diseasesEn: 'Blast Disease, Bacterial Leaf Blight, Brown Plant Hopper',
+    accentColor: '#16A34A',
+    bgColor: '#DCFCE7',
+  },
+  {
+    id: 'arecanut',
+    emoji: '🌴',
+    nameKn: 'ಅಡಿಕೆ',
+    nameEn: 'Arecanut',
+    diseasesKn: 'ಕೊಳೆರೋಗ (ಮಹಾಲಿ), ಹಳದಿ ಎಲೆ ರೋಗ, ಅನಬೆ ರೋಗ',
+    diseasesEn: 'Koleroga (Fruit Rot), Yellow Leaf Disease, Anabe Roga',
     accentColor: '#D97706',
     bgColor: '#FEF3C7',
   },
@@ -48,48 +48,48 @@ export const SUPPORTED_CROPS: SupportedCrop[] = [
     emoji: '🥥',
     nameKn: 'ತೆಂಗು',
     nameEn: 'Coconut',
-    diseasesKn: 'ಬುಡ ಕೊಳೆತ, ಸುಳಿ ಕೊಳೆ, ಕಾಂಡ ಸೋರಿಕೆ ರೋಗ, ಎಲೆ ಚುಕ್ಕೆ',
+    diseasesKn: 'ಸುಳಿ ಕೊಳೆ ರೋಗ, ಕಾಂಡ ಸೋರುವಿಕೆ, ಬೇರು ಸೊರಗು ರೋಗ',
     diseasesEn: 'Bud Rot, Stem Bleeding, Leaf Spot, Root Wilt',
     accentColor: '#0284C7',
     bgColor: '#E0F2FE',
   },
   {
     id: 'black_pepper',
-    emoji: '🌶',
-    nameKn: 'ಕಾಳುಮೆಣಸು',
+    emoji: '🌿',
+    nameKn: 'ಕರಿಮೆಣಸು',
     nameEn: 'Black Pepper',
-    diseasesKn: 'ಶೀಘ್ರ ಸೊರಗು ರೋಗ (Foot Rot), ನಿಧಾನ ಸೊರಗು, ಪರಾಗು ರೋಗ',
+    diseasesKn: 'ಧೃಢ ಸೊರಗು ರೋಗ (Foot Rot), ನಿಧಾನ ಸೊರಗು ರೋಗ, ಪೊಲ್ಲು ರೋಗ',
     diseasesEn: 'Quick Wilt (Foot Rot), Slow Wilt, Pollu Disease, Anthracnose',
     accentColor: '#DC2626',
     bgColor: '#FEE2E2',
   },
   {
     id: 'cardamom',
-    emoji: '🌿',
+    emoji: '🌱',
     nameKn: 'ಏಲಕ್ಕಿ',
     nameEn: 'Cardamom',
-    diseasesKn: 'ಕಟ್ಟೆ ರೋಗ (Katte/Mosaic), ಕೊಳೆ ರೋಗ (Azhukal), ನರ್ಸರಿ ಸೊರಗು',
-    diseasesEn: 'Katte (Mosaic Disease), Azhukal (Capsule Rot), Damping Off',
+    diseasesKn: 'ಕಟ್ಟೆ ರೋಗ (ಮೊಸಾಯಿಕ್), ಅಳಿವು ಕೊಳೆ ರೋಗ (Azurukal)',
+    diseasesEn: 'Katte Disease (Mosaic), Capsule Rot (Azurukal), Clump Rot',
     accentColor: '#059669',
     bgColor: '#D1FAE5',
-  },
-  {
-    id: 'turmeric',
-    emoji: '🟡',
-    nameKn: 'ಅರಿಶಿನ',
-    nameEn: 'Turmeric',
-    diseasesKn: 'ಗೆಡ್ಡೆ ಕೊಳೆತ (Rhizome Rot), ಎಲೆ ಚುಕ್ಕೆ, ಎಲೆ ಸುರುಳಿ ರೋಗ',
-    diseasesEn: 'Rhizome Rot, Leaf Spot (Colletotrichum), Leaf Blotch',
-    accentColor: '#CA8A04',
-    bgColor: '#FEF9C3',
   },
   {
     id: 'ginger',
     emoji: '🫚',
     nameKn: 'ಶುಂಠಿ',
     nameEn: 'Ginger',
-    diseasesKn: 'ಮೆದು ಕೊಳೆತ ರೋಗ (Soft Rot), ಬ್ಯಾಕ್ಟೀರಿಯಲ್ ಸೊರಗು, ಎಲೆ ಚುಕ್ಕೆ',
+    diseasesKn: 'ಮೃದು ಕೊಳೆ ರೋಗ (Soft Rot), ಬ್ಯಾಕ್ಟೀರಿಯಲ್ ಸೊರಗು ರೋಗ',
     diseasesEn: 'Soft Rot (Rhizome Rot), Bacterial Wilt, Leaf Spot',
+    accentColor: '#CA8A04',
+    bgColor: '#FEF08A',
+  },
+  {
+    id: 'turmeric',
+    emoji: '🌾',
+    nameKn: 'ಅರಿಶಿನ',
+    nameEn: 'Turmeric',
+    diseasesKn: 'ಎಲೆ ಚುಕ್ಕೆ ರೋಗ, ಎಲೆ ಕರಕಲು ರೋಗ, ಗೆಡ್ಡೆ ಕೊಳೆ ರೋಗ',
+    diseasesEn: 'Leaf Spot, Leaf Blotch, Rhizome Rot',
     accentColor: '#EA580C',
     bgColor: '#FFEDD5',
   },
@@ -97,47 +97,50 @@ export const SUPPORTED_CROPS: SupportedCrop[] = [
 
 export const CropSelectScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { language } = useLanguage();
+  const isKn = language === 'kn';
 
-  const handleSelectCrop = (cropId: string) => {
-    navigation.navigate('CameraCapture', { crop: cropId });
+  const handleSelectCrop = (crop: SupportedCrop) => {
+    navigation.navigate('CameraCapture', { crop: crop.id, cropNameKn: crop.nameKn, cropNameEn: crop.nameEn });
   };
 
   return (
     <View style={styles.container}>
-      <Header
-        title={language === 'kn' ? 'ಯಾವ ಬೆಳೆ?' : 'Which Crop?'}
-        showVillage={false}
-      />
+      <Header title={isKn ? 'ಬೆಳೆ ಆಯ್ಕೆಮಾಡಿ' : 'Select Crop for AI Diagnosis'} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.subtitle}>
-          {language === 'kn'
-            ? 'ರೋಗಲಕ್ಷಣವಿರುವ ನಿಮ್ಮ ಬೆಳೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ (7 ಮಾದರಿಗಳು ಲಭ್ಯ)'
-            : 'Select the crop with symptoms (7 AI Models available)'}
-        </Text>
+        <View style={styles.introBanner}>
+          <Sparkles size={16} color="#D97706" />
+          <Text style={styles.introText}>
+            {isKn
+              ? '7 ಪ್ರಮುಖ ಬೆಳೆಗಳ ರೋಗ ಪತ್ತೆಗಾಗಿ ಐಸಿಎಆರ್ (ICAR) ಮಾದರಿಗಳು ಲಭ್ಯವಿವೆ'
+              : 'Instant crop health checkup ready for 7 regional crops'}
+          </Text>
+        </View>
 
-        <View style={styles.cropsList}>
+        <View style={styles.cropList}>
           {SUPPORTED_CROPS.map((crop) => (
             <TouchableOpacity
               key={crop.id}
               activeOpacity={0.85}
-              onPress={() => handleSelectCrop(crop.id)}
-              style={[styles.cropCard, { borderColor: crop.accentColor }]}
+              onPress={() => handleSelectCrop(crop)}
+              style={styles.cropCard}
             >
-              <View style={[styles.emojiContainer, { backgroundColor: crop.bgColor }]}>
+              <View style={[styles.emojiCircle, { backgroundColor: crop.bgColor }]}>
                 <Text style={styles.emojiText}>{crop.emoji}</Text>
               </View>
 
-              <View style={styles.cropTextCol}>
-                <Text style={styles.cropTitle}>
-                  {crop.nameKn} ({crop.nameEn})
+              <View style={styles.cropInfo}>
+                <Text style={styles.cropName}>
+                  {isKn ? `${crop.nameKn} (${crop.nameEn})` : `${crop.nameEn} (${crop.nameKn})`}
                 </Text>
-                <Text style={styles.cropDescription} numberOfLines={2}>
-                  {language === 'kn' ? crop.diseasesKn : crop.diseasesEn}
+                <Text style={styles.diseasesText} numberOfLines={2}>
+                  {isKn ? crop.diseasesKn : crop.diseasesEn}
                 </Text>
               </View>
 
-              <ArrowRight size={22} color={crop.accentColor} />
+              <View style={[styles.arrowCircle, { backgroundColor: crop.bgColor }]}>
+                <ArrowRight size={16} color={crop.accentColor} strokeWidth={2.4} />
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -149,59 +152,77 @@ export const CropSelectScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    padding: Spacing.lg,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.xxxl * 1.5,
+    padding: Spacing.md,
+    paddingBottom: 40,
   },
-  subtitle: {
-    ...Typography.bodyLarge,
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-  },
-  cropsList: {
-    gap: Spacing.md,
-  },
-  cropCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.md + 2,
+  introBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
-    borderWidth: 2,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: Spacing.md,
   },
-  emojiContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  introText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+    flex: 1,
+    lineHeight: 16,
+  },
+  cropList: {
+    gap: 10,
+  },
+  cropCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  emojiCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emojiText: {
-    fontSize: 26,
+    fontSize: 22,
   },
-  cropTextCol: {
+  cropInfo: {
     flex: 1,
-    gap: 2,
   },
-  cropTitle: {
-    ...Typography.title2,
-    fontSize: 17,
-    color: Colors.textPrimary,
+  cropName: {
+    fontSize: 15,
     fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
   },
-  cropDescription: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    lineHeight: 16,
+  diseasesText: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
+  },
+  arrowCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -6,7 +6,7 @@ interface ReportContextType {
   reports: CropReport[];
   addReport: (report: CropReport) => void;
   getReportById: (id: string) => CropReport | undefined;
-  escalateStatus: (reportId: string) => void; // For hackathon demo escalation
+  escalateStatus: (reportId: string, forceStatus?: CropReport['status']) => void; // For hackathon demo escalation
   resetDemoData: () => void;
 }
 
@@ -30,10 +30,19 @@ export const ReportProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Demo Escalation Simulator: Unverified -> AI Analysed -> Corroborated -> Expert Verified
-  const escalateStatus = (reportId: string) => {
+  const escalateStatus = (reportId: string, forceStatus?: CropReport['status']) => {
     setReports((prev) =>
       prev.map((rep) => {
         if (rep.id !== reportId) return rep;
+
+        if (forceStatus) {
+          return {
+            ...rep,
+            status: forceStatus,
+            verifiedBy: forceStatus === 'expert_verified' ? 'Agriculture Officer, KVK Brahmavar' : rep.verifiedBy,
+            verifiedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', Today',
+          };
+        }
 
         if (rep.status === 'unverified') {
           return { ...rep, status: 'ai_analysed' };

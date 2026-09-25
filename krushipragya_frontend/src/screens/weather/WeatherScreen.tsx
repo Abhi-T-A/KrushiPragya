@@ -17,7 +17,7 @@ export const WeatherScreen: React.FC = () => {
   const { language } = useLanguage();
   const [selectedCrop, setSelectedCrop] = useState<'arecanut' | 'paddy'>('arecanut');
 
-  const risk = SEED_WEATHER_RISKS[selectedCrop];
+  const risk = (SEED_WEATHER_RISKS as any[]).find((r: any) => r.crop.toLowerCase().includes(selectedCrop)) || SEED_WEATHER_RISKS[0];
 
   return (
     <View style={styles.container}>

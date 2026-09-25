@@ -32,10 +32,18 @@ export const PreviewSubmitScreen: React.FC<{ route: any; navigation: any }> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const handleSubmit = async () => {
-    setIsAnalyzing(true);
+    setIsAnalyzing(true); try {
 
     // Call service (with backend or seed fallback)
-    const result = await diseaseService.predict(crop, imageUri);
+    const cropKey = typeof crop === 'string' ? crop : (crop?.id || 'arecanut');
+    let result = null;
+    try {
+      if (diseaseService && typeof diseaseService.predict === 'function') {
+        result = await diseaseService.predict(cropKey, imageUri);
+      }
+    } catch (e) {
+      console.log('Prediction fallback applied');
+    }
 
     const newReport: CropReport = {
       id: `rep_${Date.now()}`,
@@ -44,26 +52,29 @@ export const PreviewSubmitScreen: React.FC<{ route: any; navigation: any }> = ({
       cropNameEn: crop === 'arecanut' ? 'Arecanut' : 'Paddy',
       photoUri: imageUri,
       symptoms,
-      predictedDisease: result.predictedDisease || 'Koleroga (Mahali)',
-      predictedDiseaseKn: result.predictedDiseaseKn || 'ಕೊಳೆ ರೋಗ (ಮಹಾಳಿ)',
-      scientificName: result.scientificName || 'Phytophthora meadii',
-      confidence: result.confidence || 0.88,
+      predictedDisease: result?.predictedDisease || 'Koleroga (Mahali)',
+      predictedDiseaseKn: result?.predictedDiseaseKn || 'ಕೊಳೆ ರೋಗ (ಮಹಾಳಿ)',
+      scientificName: result?.scientificName || 'Phytophthora meadii',
+      confidence: result?.confidence || 0.88,
       status: 'ai_analysed',
       villageId: user?.villageId || 'v2',
       villageName: user?.villageName || 'Ujire',
       reporterRole: user?.role || 'farmer',
       proxyFor: user?.role === 'village_node' ? proxyName : undefined,
       createdAt: 'ಇಂದು, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      remedyKn: result.remedyKn,
-      remedyEn: result.remedyEn,
-      sourceInstitution: result.sourceInstitution || 'ICAR-CPCRI Kasaragod',
+      remedyKn: result?.remedyKn,
+      remedyEn: result?.remedyEn,
+      sourceInstitution: result?.sourceInstitution || 'ICAR-CPCRI Kasaragod',
       evidenceFarmsCount: 1,
     };
 
     addReport(newReport);
     setIsAnalyzing(false);
-
     navigation.navigate('AIResult', { reportId: newReport.id });
+    } catch (err) {
+      console.error('Submit error:', err);
+      setIsAnalyzing(false);
+    }
   };
 
   if (isAnalyzing) {

@@ -1,12 +1,18 @@
-import React from 'react';
+﻿import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { Colors, Typography, BorderRadius, Spacing } from '../constants/theme';
 
 // Screens
 import { HomeScreen } from '../screens/home/HomeScreen';
+import { ExpertQueueScreen } from '../screens/expert/ExpertQueueScreen';
+import { GovtPortalScreen } from '../screens/govt/GovtPortalScreen';
+import { TraderMarketScreen } from '../screens/market/TraderMarketScreen';
+import { CommunityHubScreen } from '../screens/community/CommunityHubScreen';
+
 import { CropSelectScreen } from '../screens/report/CropSelectScreen';
 import { CameraCaptureScreen } from '../screens/report/CameraCaptureScreen';
 import { PreviewSubmitScreen } from '../screens/report/PreviewSubmitScreen';
@@ -50,9 +56,30 @@ const HistoryStackNavigator = () => {
   );
 };
 
+// Dynamic Home Screen Resolver based on active demo role
+const DynamicHomeScreen = (props: any) => {
+  const { user } = useAuth();
+
+  switch (user?.role) {
+    case 'expert':
+      return <ExpertQueueScreen {...props} />;
+    case 'officer':
+      return <GovtPortalScreen {...props} />;
+    case 'buyer':
+      return <TraderMarketScreen {...props} />;
+    case 'community':
+    case 'village_node':
+      return <CommunityHubScreen {...props} />;
+    case 'farmer':
+    default:
+      return <HomeScreen {...props} />;
+  }
+};
+
 // 5 Bottom Tabs Navigator
 const BottomTabs = () => {
   const { language } = useLanguage();
+  const isKn = language === 'kn';
 
   return (
     <Tab.Navigator
@@ -65,9 +92,9 @@ const BottomTabs = () => {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
           borderTopWidth: 1.5,
-          height: 68,
-          paddingBottom: 10,
-          paddingTop: 8,
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 6,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
@@ -75,58 +102,57 @@ const BottomTabs = () => {
           shadowRadius: 6,
         },
         tabBarLabelStyle: {
-          ...Typography.caption,
           fontSize: 11,
           fontWeight: '700',
         },
       }}
     >
-      {/* 1. Home Tab */}
+      {/* 1. Dynamic Home Tab (Adapts to Active Role) */}
       <Tab.Screen
         name="HomeTab"
-        component={HomeScreen}
+        component={DynamicHomeScreen}
         options={{
-          tabBarLabel: language === 'kn' ? 'ಮುಖಪುಟ' : 'Home',
+          tabBarLabel: isKn ? 'ಮುಖಪುಟ' : 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <HomeIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
+            <HomeIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
 
-      {/* 2. Weather Tab */}
-      <Tab.Screen
-        name="WeatherTab"
-        component={WeatherScreen}
-        options={{
-          tabBarLabel: language === 'kn' ? 'ಹವಾಮಾನ' : 'Weather',
-          tabBarIcon: ({ color, focused }) => (
-            <WeatherIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
-          ),
-        }}
-      />
-
-      {/* 3. CENTER CAMERA BUTTON (Report Problem) */}
+      {/* 2. Crop Health & AI Scan Tab */}
       <Tab.Screen
         name="ReportTab"
         component={ReportStackNavigator}
         options={{
-          tabBarLabel: '',
-          tabBarIcon: () => (
-            <View style={styles.centerCameraFab}>
-              <CameraIcon color={Colors.textWhite} size={26} strokeWidth={2.4} />
+          tabBarLabel: isKn ? 'ರೋಗ ತಪಾಸಣೆ' : 'AI Health',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeCamCircle : styles.camCircle}>
+              <CameraIcon size={20} color={focused ? '#FFFFFF' : Colors.primary} strokeWidth={2.4} />
             </View>
           ),
         }}
       />
 
-      {/* 4. Status / Reports History Tab */}
+      {/* 3. History & Evidence Ladder Tab */}
       <Tab.Screen
         name="HistoryTab"
         component={HistoryStackNavigator}
         options={{
-          tabBarLabel: language === 'kn' ? 'ಸ್ಥಿತಿ' : 'Status',
+          tabBarLabel: isKn ? 'ಇತಿಹಾಸ' : 'Reports',
           tabBarIcon: ({ color, focused }) => (
-            <HistoryIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
+            <HistoryIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
+        }}
+      />
+
+      {/* 4. Weather & Spray Advisory Tab */}
+      <Tab.Screen
+        name="WeatherTab"
+        component={WeatherScreen}
+        options={{
+          tabBarLabel: isKn ? 'ಹವಾಮಾನ' : 'Weather',
+          tabBarIcon: ({ color, focused }) => (
+            <WeatherIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
@@ -136,9 +162,9 @@ const BottomTabs = () => {
         name="MarketTab"
         component={MarketScreen}
         options={{
-          tabBarLabel: language === 'kn' ? 'ಮಾರುಕಟ್ಟೆ' : 'Market',
+          tabBarLabel: isKn ? 'ಮಾರುಕಟ್ಟೆ' : 'Market',
           tabBarIcon: ({ color, focused }) => (
-            <MarketIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
+            <MarketIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
@@ -146,7 +172,7 @@ const BottomTabs = () => {
   );
 };
 
-// Root Stack connecting Bottom Tabs + Fullscreen Profile
+// Root Stack Navigator
 export const RootNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -157,20 +183,20 @@ export const RootNavigator = () => {
 };
 
 const styles = StyleSheet.create({
-  centerCameraFab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  camCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeCamCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
-    borderWidth: 4,
-    borderColor: Colors.surface,
-    shadowColor: Colors.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 6,
   },
 });

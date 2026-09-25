@@ -5,14 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { Header } from '../../components/common/Header';
-import { Card } from '../../components/common/Card';
-import { VillageCropFeed } from '../../components/village/VillageCropFeed';
-import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
-import { SEED_WEATHER_RISKS, SEED_MARKET_PRICES } from '../../constants/seedData';
+import { Colors, Spacing, BorderRadius } from '../../constants/theme';
 import {
   Camera,
   CloudSun,
@@ -21,193 +19,141 @@ import {
   AlertTriangle,
   ArrowRight,
   Sparkles,
+  Users,
   Droplets,
-  CloudRain,
-  CheckCircle2,
+  BellRing,
 } from 'lucide-react-native';
+
+const NEIGHBOR_FARMS = [
+  { id: 'n1', name: 'Manjunath H.', crop: 'Paddy', status: 'healthy', label: 'Healthy' },
+  { id: 'n2', name: 'Shekar P.', crop: 'Arecanut', status: 'alert', label: 'Pest Alert' },
+  { id: 'n3', name: 'Anand R.', crop: 'Pepper', status: 'healthy', label: 'Healthy' },
+];
 
 export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { language } = useLanguage();
   const { user } = useAuth();
+  const isKn = language === 'kn';
 
-  const weatherAlert = SEED_WEATHER_RISKS.arecanut;
-  const marketPrice = SEED_MARKET_PRICES[0];
+  const handleBroadcastAlert = () => {
+    Alert.alert(
+      isKn ? 'ಎಚ್ಚರಿಕೆ ರವಾನೆಯಾಗಿದೆ 🔔' : 'Village Alert Sent 🔔',
+      isKn ? 'ನೆರೆಹೊರೆಯ 18 ರೈತರಿಗೆ ಸಂದೇಶ ತಲುಪಿದೆ.' : 'Alert sent to 18 neighbor farms in Ujire.'
+    );
+  };
 
   return (
     <View style={styles.container}>
       <Header />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Farmer Greeting */}
-        <View style={styles.greetingBox}>
-          <Text style={styles.greetingText}>
-            {language === 'kn' ? 'ನಮಸ್ಕಾರ' : 'Namaskara'}, {user?.name ? (language === 'kn' ? user.name : user.name.split('(')[0].trim()) : (language === 'kn' ? 'ಅಭಿ ಗೌಡ' : 'Abhi Gowda')} 👋
-          </Text>
-          <Text style={styles.subGreetingText}>
-            {language === 'kn'
-              ? 'ಇಂದು ನಿಮ್ಮ ಕೃಷಿ ಸ್ಥಿತಿ ಮತ್ತು ಎಚ್ಚರಿಕೆಗಳು'
-              : "Today's agricultural status & advisories"}
-          </Text>
-        </View>
-
-        {/* PRIMARY HERO ACTION: 📷 Check / Report Crop Problem */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Compact Hero Scan Button */}
         <TouchableOpacity
-          activeOpacity={0.88}
+          activeOpacity={0.9}
           onPress={() => navigation.navigate('ReportTab', { screen: 'CropSelect' })}
-          style={styles.heroButton}
+          style={styles.heroCard}
         >
-          <View style={styles.heroIconBg}>
-            <Camera size={30} color={Colors.textWhite} strokeWidth={2.4} />
-          </View>
-          <View style={styles.heroTextCol}>
-            <View style={styles.heroBadge}>
-              <Sparkles size={12} color={Colors.accentGold} />
-              <Text style={styles.heroBadgeText}>
-                {language === 'kn' ? 'AI ಬೆಳೆ ಆರೋಗ್ಯ' : 'AI Crop Health'}
-              </Text>
+          <View style={styles.heroRow}>
+            <View style={styles.heroIconBox}>
+              <Camera size={26} color="#FFFFFF" strokeWidth={2.2} />
             </View>
-            <Text style={styles.heroTitle}>
-              {language === 'kn' ? 'ಬೆಳೆ ಸಮಸ್ಯೆ ವರದಿ ಮಾಡಿ' : 'Report Crop Problem'}
-            </Text>
-            <Text style={styles.heroSubtitle}>
-              {language === 'kn'
-                ? 'ಫೋಟೋ ತೆಗೆದು ರೋಗಲಕ್ಷಣ ಮತ್ತು ಸಲಹೆ ಪರಿಶೀಲಿಸಿ'
-                : 'Scan leaf symptom & get verified ICAR advisory'}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <View style={styles.badgeRow}>
+                <Sparkles size={12} color="#F59E0B" />
+                <Text style={styles.badgeText}>{isKn ? 'AI ಬೆಳೆ ತಪಾಸಣೆ' : 'AI Crop Doctor'}</Text>
+              </View>
+              <Text style={styles.heroTitle}>{isKn ? 'ರೋಗ ಪತ್ತೆ ಹಚ್ಚಿ' : 'Scan Crop Disease'}</Text>
+              <Text style={styles.heroSub}>{isKn ? 'ಫೋಟೋ ತೆಗೆದು ತಕ್ಷಣ ಪರಿಹಾರ ಪಡೆಯಿರಿ' : 'Snap photo for instant remedy'}</Text>
+            </View>
+            <View style={styles.arrowCircle}>
+              <ArrowRight size={16} color="#FFFFFF" />
+            </View>
           </View>
         </TouchableOpacity>
 
-        {/* 📢 VILLAGE CROP HEALTH FEED & FARMER NETWORK (Core Social Early-Warning) */}
-        <VillageCropFeed />
-
-        {/* 🌦️ Live Weather & Actionable Advisory Card */}
-        <Card variant="alert" style={styles.weatherHeroCard}>
-          <View style={styles.weatherTopRow}>
-            <View style={styles.weatherTempBox}>
-              <Text style={styles.tempText}>27°C</Text>
-              <Text style={styles.weatherCityText}>{user?.villageName ? user.villageName.split('(')[0].trim() : 'Ujire'}</Text>
+        {/* Short & Sweet Weather Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.headerLeft}>
+              <CloudSun size={18} color="#2563EB" />
+              <Text style={styles.cardTitle}>{isKn ? 'ಹವಾಮಾನ' : 'Weather'}</Text>
             </View>
-            <View style={styles.weatherStatsCol}>
-              <View style={styles.statItem}>
-                <Droplets size={14} color={Colors.primary} />
-                <Text style={styles.statText}>72% {language === 'kn' ? 'ತೇವಾಂಶ' : 'Humidity'}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <CloudRain size={14} color={Colors.primary} />
-                <Text style={styles.statText}>70% {language === 'kn' ? 'ಮಳೆಯ ಸಾಧ್ಯತೆ' : 'Rain chance'}</Text>
-              </View>
+            <Text style={styles.tempBadge}>28°C • Ujire</Text>
+          </View>
+
+          <View style={styles.weatherMiniRow}>
+            <View style={styles.weatherChip}>
+              <Droplets size={13} color="#0284C7" />
+              <Text style={styles.weatherChipText}>{isKn ? 'ತೇವಾಂಶ 84%' : 'Humidity 84%'}</Text>
+            </View>
+            <View style={styles.weatherChip}>
+              <CloudSun size={13} color="#D97706" />
+              <Text style={styles.weatherChipText}>{isKn ? 'ಮಳೆ ಸಂಭವ 70%' : 'Rain 70%'}</Text>
             </View>
           </View>
 
-          {/* Actionable Warning Banner */}
-          <View style={styles.sprayWarningBanner}>
-            <AlertTriangle size={16} color={Colors.alertHigh} />
-            <Text style={styles.sprayWarningText}>
-              {language === 'kn' ? '⚠️ ಇಂದು ಸಿಂಪಡಣೆ ತಪ್ಪಿಸಿ (Rain expected)' : '⚠️ Avoid chemical spray today (Rain)'}
+          <View style={styles.sprayAlert}>
+            <AlertTriangle size={14} color="#B45309" />
+            <Text style={styles.sprayText}>
+              {isKn ? '🌧️ ನಾಳೆ ಮಳೆ: ಇಂದು ಸಿಂಪರಣೆ ಬೇಡ' : '🌧️ Rain expected: Avoid crop spray today'}
             </Text>
           </View>
+        </View>
+
+        {/* Compact Village Radar Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.headerLeft}>
+              <Users size={18} color="#15803D" />
+              <Text style={styles.cardTitle}>{isKn ? 'ಗ್ರಾಮದ ಬೆಳೆ ಸ್ಥಿತಿ' : 'Village Crop Radar'}</Text>
+            </View>
+            <TouchableOpacity onPress={handleBroadcastAlert} style={styles.alertBtn}>
+              <BellRing size={12} color="#FFFFFF" />
+              <Text style={styles.alertBtnText}>{isKn ? 'ಎಚ್ಚರಿಸಿ' : 'Alert'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.neighborRow}>
+            {NEIGHBOR_FARMS.map((f) => (
+              <View key={f.id} style={styles.neighborChip}>
+                <Text style={styles.nName}>{f.name}</Text>
+                <Text style={styles.nCrop}>{f.crop}</Text>
+                <View style={[styles.statusDot, f.status === 'healthy' ? styles.dotGreen : styles.dotAmber]}>
+                  <Text style={[styles.statusText, f.status === 'healthy' ? { color: '#166534' } : { color: '#92400E' }]}>
+                    {f.status === 'healthy' ? '● Good' : '▲ Alert'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 2 Big Action Tiles */}
+        <View style={styles.grid2x2}>
+          <TouchableOpacity
+            style={styles.actionTile}
+            onPress={() => navigation.navigate('MarketTab')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.tileIcon, { backgroundColor: '#DCFCE7' }]}>
+              <TrendingUp size={20} color="#16A34A" />
+            </View>
+            <Text style={styles.tileTitle}>{isKn ? 'ಮಾರುಕಟ್ಟೆ ದರ' : 'Mandi Rates'}</Text>
+            <Text style={styles.tileSub}>{isKn ? 'ಅಡಿಕೆ ₹48,500' : 'Areca ₹48.5k ↑'}</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.actionTile}
             onPress={() => navigation.navigate('WeatherTab')}
-            style={styles.cardActionRow}
+            activeOpacity={0.85}
           >
-            <Text style={styles.cardActionText}>
-              {language === 'kn' ? 'ಸಂಪೂರ್ಣ ಹವಾಮಾನ ಮುನ್ನೋಟ' : 'View Full Weather Advisory'}
-            </Text>
-            <ArrowRight size={15} color={Colors.primary} />
+            <View style={[styles.tileIcon, { backgroundColor: '#EFF6FF' }]}>
+              <CloudSun size={20} color="#2563EB" />
+            </View>
+            <Text style={styles.tileTitle}>{isKn ? 'ಹವಾಮಾನ ಮುನ್ಸೂಚನೆ' : 'Weather Radar'}</Text>
+            <Text style={styles.tileSub}>{isKn ? '7-ದಿನಗಳ ಮುನ್ಸೂಚನೆ' : '7-Day Forecast'}</Text>
           </TouchableOpacity>
-        </Card>
-
-        {/* 🌱 My Crops Section (ನಿಮ್ಮ ಬೆಳೆಗಳು) */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {language === 'kn' ? 'ನಿಮ್ಮ ಬೆಳೆಗಳು' : 'My Crops'}
-          </Text>
         </View>
-
-        <View style={styles.cropsRow}>
-          {/* Arecanut Crop Card */}
-          <Card style={styles.myCropCard}>
-            <View style={styles.cropCardTop}>
-              <Text style={styles.cropCardEmoji}>🌴</Text>
-              <View style={styles.healthTag}>
-                <CheckCircle2 size={12} color={Colors.expertVerified} />
-                <Text style={styles.healthTagText}>{language === 'kn' ? 'ಆರೋಗ್ಯಕರ' : 'Healthy'}</Text>
-              </View>
-            </View>
-            <Text style={styles.myCropName}>{language === 'kn' ? 'ಅಡಿಕೆ' : 'Arecanut'}</Text>
-            <Text style={styles.myCropArea}>2.0 {language === 'kn' ? 'ಎಕರೆ' : 'Acres'}</Text>
-          </Card>
-
-          {/* Paddy Crop Card */}
-          <Card style={styles.myCropCard}>
-            <View style={styles.cropCardTop}>
-              <Text style={styles.cropCardEmoji}>🌾</Text>
-              <View style={[styles.healthTag, { backgroundColor: Colors.aiAnalysedBg }]}>
-                <AlertTriangle size={12} color={Colors.aiAnalysed} />
-                <Text style={[styles.healthTagText, { color: Colors.aiAnalysed }]}>
-                  {language === 'kn' ? 'ಗಮನ ಅಗತ್ಯ' : 'Monitoring'}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.myCropName}>{language === 'kn' ? 'ಭತ್ತ' : 'Paddy'}</Text>
-            <Text style={styles.myCropArea}>0.5 {language === 'kn' ? 'ಎಕರೆ' : 'Acres'}</Text>
-          </Card>
-        </View>
-
-        {/* Quick Action Summary Cards (Market, Schemes) */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {language === 'kn' ? 'ಕೃಷಿ ಮಾಹಿತಿ ಕೇಂದ್ರ' : 'Farm Intelligence Services'}
-          </Text>
-        </View>
-
-        {/* Market Snippet */}
-        <Card
-          onPress={() => navigation.navigate('MarketTab')}
-          style={styles.summaryCard}
-        >
-          <View style={styles.summaryRow}>
-            <View style={[styles.iconBox, { backgroundColor: '#FEF3C7' }]}>
-              <TrendingUp size={20} color={Colors.accentGold} />
-            </View>
-            <View style={styles.summaryTextCol}>
-              <Text style={styles.summaryLabel}>
-                {language === 'kn' ? 'ಮಾರುಕಟ್ಟೆ ದರಗಳು' : 'Market Prices'} — {marketPrice.cropKn}
-              </Text>
-              <Text style={styles.summaryValue}>₹{marketPrice.pricePerQuintal.toLocaleString()} / {language === 'kn' ? 'ಕ್ವಿಂಟಾಲ್' : 'Quintal'}</Text>
-              <Text style={styles.summarySub}>{marketPrice.sourceLabel}</Text>
-            </View>
-            <ArrowRight size={18} color={Colors.textMuted} />
-          </View>
-        </Card>
-
-        {/* Schemes Snippet */}
-        <Card
-          onPress={() => navigation.navigate('MarketTab', { initialTab: 'schemes' })}
-          style={styles.summaryCard}
-        >
-          <View style={styles.summaryRow}>
-            <View style={[styles.iconBox, { backgroundColor: '#E0E7FF' }]}>
-              <Landmark size={20} color={Colors.trustPurple} />
-            </View>
-            <View style={styles.summaryTextCol}>
-              <Text style={styles.summaryLabel}>
-                {language === 'kn' ? 'ಸರ್ಕಾರಿ ಯೋಜನೆಗಳು' : 'Government Schemes'}
-              </Text>
-              <Text style={styles.summaryValue}>
-                {language === 'kn' ? 'ತೋಟಗಾರಿಕೆ ಕೀಟನಾಶಕ ಸಹಾಯಧನ' : 'Horticulture Spray Subsidy'}
-              </Text>
-              <Text style={styles.summarySub}>
-                50% {language === 'kn' ? 'ಸಬ್ಸಿಡಿ — ಕರ್ನಾಟಕ ಸರ್ಕಾರ' : 'Subsidy — Govt of Karnataka'}
-              </Text>
-            </View>
-            <ArrowRight size={18} color={Colors.textMuted} />
-          </View>
-        </Card>
       </ScrollView>
     </View>
   );
@@ -216,234 +162,209 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    padding: Spacing.lg,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.xxxl * 1.5,
+    padding: Spacing.md,
+    paddingBottom: 40,
+    gap: 12,
   },
-  greetingBox: {
-    marginBottom: Spacing.md,
+  heroCard: {
+    backgroundColor: '#0F5132',
+    borderRadius: BorderRadius.lg,
+    padding: 16,
   },
-  greetingText: {
-    ...Typography.title1,
-    fontSize: 22,
-    color: Colors.textPrimary,
-  },
-  subGreetingText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  heroButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
+  heroRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-    shadowColor: Colors.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    gap: 12,
   },
-  heroIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+  heroIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#16A34A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroTextCol: {
-    flex: 1,
-  },
-  heroBadge: {
+  badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  heroBadgeText: {
-    ...Typography.caption,
-    color: Colors.textWhite,
+  badgeText: {
+    fontSize: 11,
     fontWeight: '700',
-    fontSize: 10,
+    color: '#FDE68A',
   },
   heroTitle: {
-    ...Typography.title1,
-    fontSize: 19,
-    color: Colors.textWhite,
+    fontSize: 17,
     fontWeight: '800',
+    color: '#FFFFFF',
   },
-  heroSubtitle: {
-    ...Typography.caption,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
+  heroSub: {
     fontSize: 11,
+    color: '#D1FAE5',
+    marginTop: 1,
   },
-  weatherHeroCard: {
-    padding: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.alertHigh,
-    marginBottom: Spacing.md,
+  arrowCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  weatherTopRow: {
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
   },
-  weatherTempBox: {
-    flexDirection: 'column',
-  },
-  tempText: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: Colors.textPrimary,
-  },
-  weatherCityText: {
-    ...Typography.caption,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  weatherStatsCol: {
-    gap: 4,
-    alignItems: 'flex-end',
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: {
-    ...Typography.caption,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  sprayWarningBanner: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.alertHighBg,
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    marginVertical: 4,
   },
-  sprayWarningText: {
-    ...Typography.label,
-    fontSize: 12,
-    color: Colors.alertHigh,
+  cardTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    flex: 1,
-  },
-  cardActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: Spacing.sm,
-    alignSelf: 'flex-end',
-  },
-  cardActionText: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontWeight: '800',
-  },
-  sectionHeader: {
-    marginVertical: Spacing.xs,
-  },
-  sectionTitle: {
-    ...Typography.title2,
-    fontSize: 17,
     color: Colors.textPrimary,
-    fontWeight: '800',
   },
-  cropsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  myCropCard: {
-    flex: 1,
-    padding: Spacing.md,
-    marginBottom: Spacing.xs,
-  },
-  cropCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  cropCardEmoji: {
-    fontSize: 24,
-  },
-  healthTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: Colors.expertVerifiedBg,
-    paddingHorizontal: 6,
+  tempBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
-  healthTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: Colors.expertVerified,
+  weatherMiniRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  myCropName: {
-    ...Typography.bodyLarge,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  myCropArea: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  summaryCard: {
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  summaryRow: {
+  weatherChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
   },
-  iconBox: {
-    width: 42,
-    height: 42,
+  weatherChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  sprayAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.sm,
+  },
+  sprayText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400E',
+    flex: 1,
+  },
+  alertBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  alertBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  neighborRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  neighborChip: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: BorderRadius.sm,
+    padding: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 2,
+  },
+  nName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  nCrop: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+  },
+  statusDot: {
+    marginTop: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.full,
+  },
+  dotGreen: {
+    backgroundColor: '#DCFCE7',
+  },
+  dotAmber: {
+    backgroundColor: '#FEF3C7',
+  },
+  statusText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  grid2x2: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionTile: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    gap: 4,
+  },
+  tileIcon: {
+    width: 38,
+    height: 38,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 2,
   },
-  summaryTextCol: {
-    flex: 1,
-  },
-  summaryLabel: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  summaryValue: {
-    ...Typography.bodyLarge,
+  tileTitle: {
+    fontSize: 12,
     fontWeight: '800',
     color: Colors.textPrimary,
-    marginTop: 1,
   },
-  summarySub: {
-    ...Typography.caption,
-    color: Colors.textMuted,
+  tileSub: {
     fontSize: 11,
-    marginTop: 1,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
 });

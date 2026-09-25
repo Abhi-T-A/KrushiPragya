@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   ImageBackground,
   Dimensions,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { KrushiPragyaLogo } from '../../components/common/KrushiPragyaLogo';
 import { Colors, Spacing, Typography } from '../../constants/theme';
 
 const { width, height } = Dimensions.get('window');
@@ -22,7 +22,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
       if (onFinish) {
         onFinish();
       }
-    }, 4000); // 4 full seconds
+    }, 4000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -34,47 +34,22 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         style={styles.backgroundImage}
         resizeMode="cover"
       >
-        {/* Soft top gradient overlay for text clarity */}
+        {/* Soft elegant overlay */}
         <View style={styles.gradientOverlay}>
-          {/* Top Brand Section */}
+          {/* Top Brand Section with EXACT Logo */}
           <View style={styles.contentContainer}>
-            {/* Custom Clean Dual-Leaf Logo (SVG) */}
-            <View style={styles.logoContainer}>
-              <Svg width={72} height={72} viewBox="0 0 100 100" fill="none">
-                {/* Left Leaf */}
-                <Path
-                  d="M48 20 C30 25, 15 45, 20 70 C35 75, 52 60, 48 20 Z"
-                  fill="#1B8755"
-                />
-                <Path
-                  d="M20 70 Q35 50 48 20"
-                  stroke="#A7F3D0"
-                  strokeWidth="2.5"
-                  fill="none"
-                />
-                {/* Right Leaf */}
-                <Path
-                  d="M52 10 C75 18, 88 42, 80 72 C62 76, 46 55, 52 10 Z"
-                  fill="#0F6E56"
-                />
-                <Path
-                  d="M80 72 Q64 45 52 10"
-                  stroke="#A7F3D0"
-                  strokeWidth="2.5"
-                  fill="none"
-                />
-              </Svg>
+            <View style={styles.logoCard}>
+              <KrushiPragyaLogo size={130} showText={true} />
             </View>
 
-            {/* Title */}
-            <Text style={styles.brandTitle}>KRUSHIPRAGYA</Text>
-
-            {/* Kannada Tagline matching reference */}
-            <Text style={styles.kannadaLine1}>ನಿಮ್ಮ ಬೆಳೆಗಾಗಿ</Text>
-            <Text style={styles.kannadaLine2}>ಬುದ್ಧಿವಂತ ಸಹಾಯಕ</Text>
+            {/* Kannada Taglines */}
+            <View style={styles.taglineBox}>
+              <Text style={styles.kannadaLine1}>ನಿಮ್ಮ ಬೆಳೆಗಾಗಿ</Text>
+              <Text style={styles.kannadaLine2}>ಬುದ್ಧಿವಂತ ಸಹಾಯಕ</Text>
+            </View>
           </View>
 
-          {/* Bottom Spinner matching reference */}
+          {/* Bottom Spinner */}
           <View style={styles.bottomContainer}>
             <ActivityIndicator size="large" color="#FFFFFF" />
             <Text style={styles.loadingText}>Loading...</Text>
@@ -97,41 +72,53 @@ const styles = StyleSheet.create({
   },
   gradientOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    backgroundColor: 'rgba(255, 255, 255, 0.48)',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.xxxl * 1.6,
+    paddingVertical: Spacing.xxxl * 1.5,
   },
   contentContainer: {
     alignItems: 'center',
     marginTop: Spacing.xxxl,
     paddingHorizontal: Spacing.lg,
   },
-  logoContainer: {
-    width: 90,
-    height: 90,
+  logoCard: {
+    backgroundColor: '#FBF9F4',
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.xxl + 4,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: '#E3DFC8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    minWidth: 280,
   },
-  brandTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#0A4A3A',
-    letterSpacing: 2,
-    marginBottom: Spacing.xs,
+  taglineBox: {
+    alignItems: 'center',
+    marginTop: Spacing.lg,
   },
   kannadaLine1: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0F6E56',
+    color: '#1C4B38',
     marginTop: 2,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   kannadaLine2: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 25,
+    fontWeight: '900',
     color: '#064E3B',
     marginTop: 2,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   bottomContainer: {
     alignItems: 'center',

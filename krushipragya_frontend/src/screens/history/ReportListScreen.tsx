@@ -15,12 +15,12 @@ import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme
 import { ChevronRight, Calendar, Building2 } from 'lucide-react-native';
 
 export const ReportListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
   const { reports } = useReports();
 
   return (
     <View style={styles.container}>
-      <Header title="ವರದಿಗಳ ಸ್ಥಿತಿ (Report Status)" />
+      <Header title={language === 'kn' ? 'ವರದಿಗಳ ಸ್ಥಿತಿ' : 'Report Verification Status'} />
 
       <FlatList
         data={reports}
@@ -34,13 +34,18 @@ export const ReportListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           >
             <View style={styles.cardTop}>
               <StatusBadge status={item.status} />
-              <Text style={styles.cropTag}>{item.cropNameKn} ({item.cropNameEn})</Text>
+              <Text style={styles.cropTag}>
+                {language === 'kn' ? item.cropNameKn : item.cropNameEn}
+              </Text>
             </View>
 
             <View style={styles.middleRow}>
-              <Text style={styles.diseaseName}>{item.predictedDiseaseKn}</Text>
+              <Text style={styles.diseaseName}>
+                {language === 'kn' ? item.predictedDiseaseKn : item.predictedDisease}
+              </Text>
               <Text style={styles.confidenceText}>
-                ವಿಶ್ವಾಸ ಮಟ್ಟ: {(item.confidence * 100).toFixed(0)}%
+                {language === 'kn' ? 'ವಿಶ್ವಾಸ ಮಟ್ಟ: ' : 'AI Confidence: '}
+                {(item.confidence * 100).toFixed(0)}%
               </Text>
             </View>
 

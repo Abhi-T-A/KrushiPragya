@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Image,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../context/LanguageContext';
 import { Button } from '../../components/common/Button';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';

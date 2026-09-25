@@ -3,8 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
+  ScrollView,
   Linking,
 } from 'react-native';
 import { useLanguage } from '../../context/LanguageContext';
@@ -17,7 +17,7 @@ import { TrendingUp, Landmark, ExternalLink, Clock, Building2, CheckCircle2 } fr
 
 export const MarketScreen: React.FC<{ route: any }> = ({ route }) => {
   const { initialTab } = route?.params || { initialTab: 'market' };
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState<'market' | 'schemes'>(initialTab);
 
   const openUrl = (url: string) => {
@@ -36,7 +36,7 @@ export const MarketScreen: React.FC<{ route: any }> = ({ route }) => {
         >
           <TrendingUp size={16} color={activeTab === 'market' ? Colors.textWhite : Colors.textSecondary} />
           <Text style={[styles.tabButtonText, activeTab === 'market' && styles.tabButtonTextActive]}>
-            {t.tabMarket} (Prices)
+            {language === 'kn' ? 'ಮಾರುಕಟ್ಟೆ ದರಗಳು' : 'Market Prices'}
           </Text>
         </TouchableOpacity>
 
@@ -46,7 +46,7 @@ export const MarketScreen: React.FC<{ route: any }> = ({ route }) => {
         >
           <Landmark size={16} color={activeTab === 'schemes' ? Colors.textWhite : Colors.textSecondary} />
           <Text style={[styles.tabButtonText, activeTab === 'schemes' && styles.tabButtonTextActive]}>
-            {t.quickSchemes}
+            {language === 'kn' ? 'ಸರ್ಕಾರಿ ಯೋಜನೆಗಳು' : 'Govt Schemes'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -55,14 +55,22 @@ export const MarketScreen: React.FC<{ route: any }> = ({ route }) => {
         {activeTab === 'market' ? (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t.marketTitle}</Text>
-              <Text style={styles.sectionSubtitle}>{t.marketSubtitle}</Text>
+              <Text style={styles.sectionTitle}>
+                {language === 'kn' ? 'ಮಾರುಕಟ್ಟೆ ದರಗಳ ಪಾರದರ್ಶಕತೆ' : 'Market Price Transparency'}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {language === 'kn'
+                  ? 'ಹೋಲಿಕೆಗಾಗಿ ಮಾತ್ರ — ಮಾರಾಟ ಮಾಡುವ ಮುನ್ನ ಪರಿಶೀಲಿಸಿ'
+                  : 'Prices shown for comparison only. Verify before selling.'}
+              </Text>
             </View>
 
             {SEED_MARKET_PRICES.map((item) => (
               <Card key={item.id} style={styles.priceCard}>
                 <View style={styles.priceHeader}>
-                  <Text style={styles.cropTitle}>{item.cropKn}</Text>
+                  <Text style={styles.cropTitle}>
+                    {language === 'kn' ? item.cropKn : item.crop}
+                  </Text>
                   <View style={styles.sourceTag}>
                     <Text style={styles.sourceTagText}>{item.sourceType}</Text>
                   </View>
@@ -70,7 +78,9 @@ export const MarketScreen: React.FC<{ route: any }> = ({ route }) => {
 
                 <View style={styles.priceRow}>
                   <Text style={styles.priceAmount}>₹{item.pricePerQuintal.toLocaleString()}</Text>
-                  <Text style={styles.priceUnit}>{t.perQuintal}</Text>
+                  <Text style={styles.priceUnit}>
+                    / {language === 'kn' ? 'ಕ್ವಿಂಟಾಲ್' : 'Quintal'}
+                  </Text>
                 </View>
 
                 <View style={styles.sourceFooter}>
@@ -86,34 +96,48 @@ export const MarketScreen: React.FC<{ route: any }> = ({ route }) => {
 
             <View style={styles.disclaimerBox}>
               <Text style={styles.disclaimerText}>
-                ⚠️ ಸೂಚನೆ: ಈ ಬೆಲೆಗಳು ಹೋಲಿಕೆಗಾಗಿ ಮಾತ್ರ. ಯಾವುದೇ ನೇರ ಖರೀದಿ/ಮಾರಾಟ ಒಪ್ಪಂದ ಮಾಡುವ ಮುನ್ನ ಮಂಡಿ ಅಥವಾ ವ್ಯಾಪಾರಿಗಳೊಂದಿಗೆ ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ.
+                {language === 'kn'
+                  ? '⚠️ ಸೂಚನೆ: ಈ ಬೆಲೆಗಳು ಹೋಲಿಕೆಗಾಗಿ ಮಾತ್ರ. ಯಾವುದೇ ನೇರ ಖರೀದಿ/ಮಾರಾಟ ಒಪ್ಪಂದ ಮಾಡುವ ಮುನ್ನ ಮಂಡಿ ಅಥವಾ ವ್ಯಾಪಾರಿಗಳೊಂದಿಗೆ ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ.'
+                  : '⚠️ Disclaimer: Prices are for information only. Confirm terms directly with mandi or buyers before transaction.'}
               </Text>
             </View>
           </>
         ) : (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>ಕರ್ನಾಟಕ ಸರ್ಕಾರಿ ಕೃಷಿ ಯೋಜನೆಗಳು</Text>
-              <Text style={styles.sectionSubtitle}>ಅಧಿಕೃತ ಇಲಾಖೆಗಳಿಂದ ಪರಿಶೀಲಿಸಿದ ಮಾಹಿತಿ</Text>
+              <Text style={styles.sectionTitle}>
+                {language === 'kn' ? 'ಕರ್ನಾಟಕ ಸರ್ಕಾರಿ ಕೃಷಿ ಯೋಜನೆಗಳು' : 'Karnataka Agriculture Schemes'}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {language === 'kn' ? 'ಅಧಿಕೃತ ಇಲಾಖೆಗಳಿಂದ ಪರಿಶೀಲಿಸಿದ ಮಾಹಿತಿ' : 'Verified from official departments'}
+              </Text>
             </View>
 
             {SEED_SCHEMES.map((scheme) => (
               <Card key={scheme.id} variant="trust" style={styles.schemeCard}>
-                <Text style={styles.schemeTitle}>{scheme.nameKn}</Text>
+                <Text style={styles.schemeTitle}>
+                  {language === 'kn' ? scheme.nameKn : scheme.nameEn}
+                </Text>
                 <Text style={styles.schemeDept}>{scheme.department}</Text>
 
                 <View style={styles.benefitBox}>
                   <CheckCircle2 size={16} color={Colors.primary} />
-                  <Text style={styles.benefitText}>{scheme.benefitKn}</Text>
+                  <Text style={styles.benefitText}>
+                    {language === 'kn' ? scheme.benefitKn : scheme.benefitEn}
+                  </Text>
                 </View>
 
                 <View style={styles.eligibilityRow}>
-                  <Text style={styles.eligibilityLabel}>ಅರ್ಹತೆ:</Text>
-                  <Text style={styles.eligibilityText}>{scheme.eligibilityKn}</Text>
+                  <Text style={styles.eligibilityLabel}>
+                    {language === 'kn' ? 'ಅರ್ಹತೆ:' : 'Eligibility:'}
+                  </Text>
+                  <Text style={styles.eligibilityText}>
+                    {language === 'kn' ? scheme.eligibilityKn : scheme.eligibilityEn}
+                  </Text>
                 </View>
 
                 <Button
-                  title="ಅಧಿಕೃತ ತಾಣ ತೆರೆಯಿರಿ (Official Portal)"
+                  title={language === 'kn' ? 'ಅಧಿಕೃತ ತಾಣ ತೆರೆಯಿರಿ (Official Portal)' : 'Open Official Portal'}
                   variant="outline"
                   size="normal"
                   onPress={() => openUrl(scheme.officialSourceUrl)}

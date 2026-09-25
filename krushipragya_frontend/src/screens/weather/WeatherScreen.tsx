@@ -14,14 +14,14 @@ import { SEED_WEATHER_RISKS } from '../../constants/seedData';
 import { CloudRain, Droplets, Thermometer, AlertCircle, Building2 } from 'lucide-react-native';
 
 export const WeatherScreen: React.FC = () => {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
   const [selectedCrop, setSelectedCrop] = useState<'arecanut' | 'paddy'>('arecanut');
 
   const risk = SEED_WEATHER_RISKS[selectedCrop];
 
   return (
     <View style={styles.container}>
-      <Header title={t.weatherTitle} />
+      <Header title={language === 'kn' ? 'ಹವಾಮಾನ ಮತ್ತು ರೋಗದ ಅಪಾಯ' : 'Weather & Disease Risk'} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Simple 2-Crop Selector */}
@@ -39,7 +39,7 @@ export const WeatherScreen: React.FC = () => {
                 selectedCrop === 'arecanut' && styles.toggleActiveText,
               ]}
             >
-              🌴 ಅಡಿಕೆ (Arecanut)
+              🌴 {language === 'kn' ? 'ಅಡಿಕೆ (Arecanut)' : 'Arecanut'}
             </Text>
           </TouchableOpacity>
 
@@ -56,7 +56,7 @@ export const WeatherScreen: React.FC = () => {
                 selectedCrop === 'paddy' && styles.toggleActiveText,
               ]}
             >
-              🌾 ಭತ್ತ (Paddy)
+              🌾 {language === 'kn' ? 'ಭತ್ತ (Paddy)' : 'Paddy'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -85,14 +85,22 @@ export const WeatherScreen: React.FC = () => {
                   },
                 ]}
               >
-                {risk.riskLevel === 'HIGH' ? `🔴 ${t.highRisk}` : `🟡 ${t.mediumRisk}`}
+                {risk.riskLevel === 'HIGH'
+                  ? (language === 'kn' ? '🔴 ಹೆಚ್ಚಿನ ಅಪಾಯ' : '🔴 HIGH RISK')
+                  : (language === 'kn' ? '🟡 ಮಧ್ಯಮ ಅಪಾಯ' : '🟡 MEDIUM RISK')}
               </Text>
             </View>
-            <Text style={styles.validText}>ಮಾನ್ಯತೆ: {risk.validUntil}</Text>
+            <Text style={styles.validText}>
+              {language === 'kn' ? 'ಮಾನ್ಯತೆ' : 'Valid until'}: {risk.validUntil}
+            </Text>
           </View>
 
-          <Text style={styles.riskName}>{risk.diseaseRiskKn}</Text>
-          <Text style={styles.triggerText}>ಕಾರಣ: {risk.triggerCondition}</Text>
+          <Text style={styles.riskName}>
+            {language === 'kn' ? risk.diseaseRiskKn : risk.diseaseRisk}
+          </Text>
+          <Text style={styles.triggerText}>
+            {language === 'kn' ? 'ಕಾರಣ: ' : 'Trigger: '}{risk.triggerCondition}
+          </Text>
         </Card>
 
         {/* Weather Metrics Bar */}
@@ -100,29 +108,33 @@ export const WeatherScreen: React.FC = () => {
           <View style={styles.metricCard}>
             <Droplets size={20} color={Colors.primary} />
             <Text style={styles.metricValue}>{risk.humidity}%</Text>
-            <Text style={styles.metricLabel}>{t.humidity}</Text>
+            <Text style={styles.metricLabel}>{language === 'kn' ? 'ತೇವಾಂಶ' : 'Humidity'}</Text>
           </View>
 
           <View style={styles.metricCard}>
             <CloudRain size={20} color={Colors.primary} />
             <Text style={styles.metricValue}>{risk.rainfallMm} mm</Text>
-            <Text style={styles.metricLabel}>{t.rainfall}</Text>
+            <Text style={styles.metricLabel}>{language === 'kn' ? 'ಮಳೆ' : 'Rainfall'}</Text>
           </View>
 
           <View style={styles.metricCard}>
             <Thermometer size={20} color={Colors.primary} />
             <Text style={styles.metricValue}>{risk.tempMin}° - {risk.tempMax}°C</Text>
-            <Text style={styles.metricLabel}>{t.temp}</Text>
+            <Text style={styles.metricLabel}>{language === 'kn' ? 'ತಾಪಮಾನ' : 'Temperature'}</Text>
           </View>
         </View>
 
-        {/* Actionable Kannada Advice */}
+        {/* Actionable Advice */}
         <Card style={styles.advisoryCard}>
           <View style={styles.advisoryHeader}>
             <AlertCircle size={20} color={Colors.primaryDark} />
-            <Text style={styles.advisoryTitle}>{t.weatherAdviceAction}</Text>
+            <Text style={styles.advisoryTitle}>
+              {language === 'kn' ? 'ಸೂಕ್ತ ಕೃಷಿ ಕ್ರಮ' : 'Recommended Agronomic Action'}
+            </Text>
           </View>
-          <Text style={styles.advisoryText}>{risk.advisoryKn}</Text>
+          <Text style={styles.advisoryText}>
+            {language === 'kn' ? risk.advisoryKn : risk.advisoryEn}
+          </Text>
 
           <View style={styles.sourceRow}>
             <Building2 size={14} color={Colors.textSecondary} />

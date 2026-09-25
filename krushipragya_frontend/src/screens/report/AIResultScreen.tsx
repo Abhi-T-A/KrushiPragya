@@ -24,7 +24,7 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
   navigation,
 }) => {
   const { reportId } = route.params;
-  const { t } = useLanguage();
+  const { language } = useLanguage();
   const { getReportById, escalateStatus } = useReports();
   const [showProvenance, setShowProvenance] = useState(false);
 
@@ -33,10 +33,15 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
   if (!report) {
     return (
       <View style={styles.container}>
-        <Header title="ವರದಿ ಸಿಗಲಿಲ್ಲ" />
+        <Header title={language === 'kn' ? 'ವರದಿ ಸಿಗಲಿಲ್ಲ' : 'Report Not Found'} />
         <View style={styles.centerBox}>
-          <Text style={styles.errorText}>ವರದಿ ಲಭ್ಯವಿಲ್ಲ.</Text>
-          <Button title={t.back} onPress={() => navigation.navigate('HomeTab')} />
+          <Text style={styles.errorText}>
+            {language === 'kn' ? 'ವರದಿ ಲಭ್ಯವಿಲ್ಲ.' : 'Report details are not available.'}
+          </Text>
+          <Button
+            title={language === 'kn' ? 'ಹಿಂದೆ' : 'Go Back'}
+            onPress={() => navigation.navigate('HomeTab')}
+          />
         </View>
       </View>
     );
@@ -46,11 +51,15 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
   if (report.confidence < 0.5) {
     return (
       <View style={styles.container}>
-        <Header title="AI ವಿಶ್ಲೇಷಣೆ" />
+        <Header title={language === 'kn' ? 'AI ವಿಶ್ಲೇಷಣೆ' : 'AI Analysis'} />
         <View style={styles.errorCard}>
-          <Text style={styles.lowConfidenceTitle}>{t.lowConfidenceError}</Text>
+          <Text style={styles.lowConfidenceTitle}>
+            {language === 'kn'
+              ? 'ರೋಗವನ್ನು ಖಚಿತವಾಗಿ ಗುರುತಿಸಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಸ್ಪಷ್ಟವಾದ ಫೋಟೋ ತೆಗೆಯಿರಿ.'
+              : 'Could not confidently identify the condition. Please take a clearer photo.'}
+          </Text>
           <Button
-            title="ಮತ್ತೆ ಫೋಟೋ ತೆಗೆಯಿರಿ"
+            title={language === 'kn' ? 'ಮತ್ತೆ ಫೋಟೋ ತೆಗೆಯಿರಿ' : 'Retake Clear Photo'}
             onPress={() => navigation.navigate('CameraCapture', { crop: report.crop })}
           />
         </View>
@@ -60,20 +69,31 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
 
   return (
     <View style={styles.container}>
-      <Header title="ವಿಶ್ಲೇಷಣೆ ಫಲಿತಾಂಶ" showVillage={false} />
+      <Header
+        title={language === 'kn' ? 'ವಿಶ್ಲೇಷಣೆ ಫಲಿತಾಂಶ' : 'Analysis Result'}
+        showVillage={false}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Status Badge & Crop Name */}
         <View style={styles.statusRow}>
           <StatusBadge status={report.status} />
-          <Text style={styles.cropBadge}>{report.cropNameKn} ({report.cropNameEn})</Text>
+          <Text style={styles.cropBadge}>
+            {language === 'kn' ? `${report.cropNameKn} (${report.cropNameEn})` : report.cropNameEn}
+          </Text>
         </View>
 
         {/* Primary Diagnosis Card */}
         <Card variant="trust" style={styles.resultCard}>
-          <Text style={styles.resultCardSubtitle}>{t.possibleIssue}:</Text>
-          <Text style={styles.diseaseNameKn}>{report.predictedDiseaseKn}</Text>
-          <Text style={styles.diseaseNameEn}>{report.predictedDisease} ({report.scientificName})</Text>
+          <Text style={styles.resultCardSubtitle}>
+            {language === 'kn' ? 'ಸಾಧ್ಯವಿರುವ ಸಮಸ್ಯೆ (Possible Issue):' : 'Possible Condition Identified:'}
+          </Text>
+          <Text style={styles.diseaseNameKn}>
+            {language === 'kn' ? report.predictedDiseaseKn : report.predictedDisease}
+          </Text>
+          <Text style={styles.diseaseNameEn}>
+            {report.predictedDisease} {report.scientificName ? `(${report.scientificName})` : ''}
+          </Text>
 
           {/* AI Confidence Bar with Preliminary Warning */}
           <ConfidenceBar confidence={report.confidence} />
@@ -83,15 +103,19 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
         <Card variant="highlight" style={styles.remedyCard}>
           <View style={styles.remedyHeader}>
             <Sparkles size={18} color={Colors.primaryDark} />
-            <Text style={styles.remedyTitle}>{t.recommendedAction}</Text>
+            <Text style={styles.remedyTitle}>
+              {language === 'kn' ? 'ಶಿಫಾರಸು ಮಾಡಿದ ಕ್ರಮ (ಸಲಹೆ)' : 'Recommended Agronomic Action'}
+            </Text>
           </View>
-          <Text style={styles.remedyText}>{report.remedyKn}</Text>
+          <Text style={styles.remedyText}>
+            {language === 'kn' ? report.remedyKn : (report.remedyEn || report.remedyKn)}
+          </Text>
 
           {/* Explicit ICAR Attribution */}
           <View style={styles.sourceBox}>
             <Building2 size={14} color={Colors.textSecondary} />
             <Text style={styles.sourceText}>
-              {t.sourceInstitution}: <Text style={{ fontWeight: '700' }}>{report.sourceInstitution}</Text>
+              {language === 'kn' ? 'ಮೂಲ ಸಂಸ್ಥೆ' : 'Source'}: <Text style={{ fontWeight: '700' }}>{report.sourceInstitution}</Text>
             </Text>
           </View>
         </Card>
@@ -106,26 +130,30 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
 
         {/* CTA: View Full Provenance & Evidence */}
         <Button
-          title={t.viewEvidence}
+          title={language === 'kn' ? 'ಸಾಕ್ಷ್ಯ ಮತ್ತು ವಿವರ ನೋಡಿ (View Provenance)' : 'View Evidence & Provenance'}
           variant="outline"
           onPress={() => setShowProvenance(true)}
           icon={<ShieldCheck size={18} color={Colors.primary} />}
         />
 
-        {/* DEMO ESCALATION CONTROLLER (Clearly marked for Hackathon presentation) */}
+        {/* DEMO ESCALATION CONTROLLER */}
         <View style={styles.demoControllerBox}>
           <View style={styles.demoHeader}>
             <RefreshCw size={14} color={Colors.trustPurple} />
-            <Text style={styles.demoTitle}>{t.demoModeBadge}</Text>
+            <Text style={styles.demoTitle}>
+              {language === 'kn' ? 'ಡೆಮೊ ಮೋಡ್ — ಪರಿಶೀಲನೆ ಪರೀಕ್ಷಿಸಿ' : 'Demo Mode — Verification Simulation'}
+            </Text>
           </View>
 
           <Text style={styles.demoDesc}>
-            ನ್ಯಾಯಾಧೀಶರ ಪ್ರಸ್ತುತಿಗಾಗಿ: 3 ತೋಟಗಳ ದೃಢೀಕರಣ ಮತ್ತು ತಜ್ಞರ ಪರಿಶೀಲನೆ ಹಂತಗಳನ್ನು ಪರೀಕ್ಷಿಸಿ.
+            {language === 'kn'
+              ? 'ನ್ಯಾಯಾಧೀಶರ ಪ್ರಸ್ತುತಿಗಾಗಿ: 3 ತೋಟಗಳ ದೃಢೀಕರಣ ಮತ್ತು ತಜ್ಞರ ಪರಿಶೀಲನೆ ಹಂತಗಳನ್ನು ಪರೀಕ್ಷಿಸಿ.'
+              : 'For Judge Presentation: Test community corroboration and expert verification stages.'}
           </Text>
 
           {report.status === 'ai_analysed' && (
             <Button
-              title="ಹಂತ 3: ಗ್ರಾಮ ದೃಢೀಕರಣ (Simulate 3 Farms)"
+              title={language === 'kn' ? 'ಹಂತ 3: ಗ್ರಾಮ ದೃಢೀಕರಣ (3 Farms Signal)' : 'Stage 3: Corroborate (3 Farms)'}
               size="normal"
               onPress={() => escalateStatus(report.id)}
               style={styles.demoButton}
@@ -134,7 +162,7 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
 
           {report.status === 'corroborated' && (
             <Button
-              title="ಹಂತ 4: ಕೃಷಿ ಅಧಿಕಾರಿ ಪರಿಶೀಲನೆ (Expert Verify)"
+              title={language === 'kn' ? 'ಹಂತ 4: ಕೃಷಿ ಅಧಿಕಾರಿ ಪರಿಶೀಲನೆ (Expert Verify)' : 'Stage 4: Officer Verification (Sign-off)'}
               size="normal"
               onPress={() => escalateStatus(report.id)}
               style={styles.demoButton}
@@ -143,7 +171,7 @@ export const AIResultScreen: React.FC<{ route: any; navigation: any }> = ({
         </View>
 
         <Button
-          title="ಮುಖಪುಟಕ್ಕೆ ಹಿಂತಿರುಗಿ (Done)"
+          title={language === 'kn' ? 'ಮುಖಪುಟಕ್ಕೆ ಹಿಂತಿರುಗಿ (Done)' : 'Done (Back to Home)'}
           variant="secondary"
           onPress={() => navigation.navigate('HomeTab')}
           style={{ marginTop: Spacing.sm }}

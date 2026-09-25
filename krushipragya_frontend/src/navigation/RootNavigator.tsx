@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useLanguage } from '../context/LanguageContext';
-import { Colors, Typography, BorderRadius } from '../constants/theme';
+import { Colors, Typography, BorderRadius, Spacing } from '../constants/theme';
 
 // Screens
 import { HomeScreen } from '../screens/home/HomeScreen';
@@ -14,13 +14,14 @@ import { AIResultScreen } from '../screens/report/AIResultScreen';
 import { ReportListScreen } from '../screens/history/ReportListScreen';
 import { WeatherScreen } from '../screens/weather/WeatherScreen';
 import { MarketScreen } from '../screens/market/MarketScreen';
+import { ProfileScreen } from '../screens/profile/ProfileScreen';
 
 // Icons
 import {
   Home as HomeIcon,
   Camera as CameraIcon,
   ClipboardList as HistoryIcon,
-  CloudRain as WeatherIcon,
+  CloudSun as WeatherIcon,
   TrendingUp as MarketIcon,
 } from 'lucide-react-native';
 
@@ -39,93 +40,137 @@ const ReportStackNavigator = () => {
   );
 };
 
-export const RootNavigator = () => {
-  const { t } = useLanguage();
+// Nested History Stack
+const HistoryStackNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ReportList" component={ReportListScreen} />
+      <Stack.Screen name="AIResult" component={AIResultScreen} />
+    </Stack.Navigator>
+  );
+};
+
+// 5 Bottom Tabs Navigator
+const BottomTabs = () => {
+  const { language } = useLanguage();
 
   return (
     <Tab.Navigator
+      initialRouteName="HomeTab"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarInactiveTintColor: Colors.textSecondary,
         tabBarStyle: {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 6,
+          borderTopWidth: 1.5,
+          height: 68,
+          paddingBottom: 10,
+          paddingTop: 8,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
         },
         tabBarLabelStyle: {
           ...Typography.caption,
+          fontSize: 11,
           fontWeight: '700',
         },
       }}
     >
+      {/* 1. Home Tab */}
       <Tab.Screen
         name="HomeTab"
         component={HomeScreen}
         options={{
-          tabBarLabel: t.tabHome,
-          tabBarIcon: ({ color, size }) => <HomeIcon color={color} size={size} />,
+          tabBarLabel: language === 'kn' ? 'ಮುಖಪುಟ' : 'Home',
+          tabBarIcon: ({ color, focused }) => (
+            <HomeIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
 
+      {/* 2. Weather Tab */}
+      <Tab.Screen
+        name="WeatherTab"
+        component={WeatherScreen}
+        options={{
+          tabBarLabel: language === 'kn' ? 'ಹವಾಮಾನ' : 'Weather',
+          tabBarIcon: ({ color, focused }) => (
+            <WeatherIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
+          ),
+        }}
+      />
+
+      {/* 3. CENTER CAMERA BUTTON (Report Problem) */}
       <Tab.Screen
         name="ReportTab"
         component={ReportStackNavigator}
         options={{
-          tabBarLabel: t.tabReport,
-          tabBarIcon: ({ color, size }) => (
-            <View style={styles.fabIcon}>
-              <CameraIcon color={Colors.textWhite} size={22} />
+          tabBarLabel: '',
+          tabBarIcon: () => (
+            <View style={styles.centerCameraFab}>
+              <CameraIcon color={Colors.textWhite} size={26} strokeWidth={2.4} />
             </View>
           ),
         }}
       />
 
+      {/* 4. Status / Reports History Tab */}
       <Tab.Screen
         name="HistoryTab"
-        component={ReportListScreen}
+        component={HistoryStackNavigator}
         options={{
-          tabBarLabel: t.tabHistory,
-          tabBarIcon: ({ color, size }) => <HistoryIcon color={color} size={size} />,
+          tabBarLabel: language === 'kn' ? 'ಸ್ಥಿತಿ' : 'Status',
+          tabBarIcon: ({ color, focused }) => (
+            <HistoryIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
 
-      <Tab.Screen
-        name="WeatherTab"
-        component={WeatherScreen}
-        options={{
-          tabBarLabel: t.tabWeather,
-          tabBarIcon: ({ color, size }) => <WeatherIcon color={color} size={size} />,
-        }}
-      />
-
+      {/* 5. Market & Schemes Tab */}
       <Tab.Screen
         name="MarketTab"
         component={MarketScreen}
         options={{
-          tabBarLabel: t.tabMarket,
-          tabBarIcon: ({ color, size }) => <MarketIcon color={color} size={size} />,
+          tabBarLabel: language === 'kn' ? 'ಮಾರುಕಟ್ಟೆ' : 'Market',
+          tabBarIcon: ({ color, focused }) => (
+            <MarketIcon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
     </Tab.Navigator>
   );
 };
 
+// Root Stack connecting Bottom Tabs + Fullscreen Profile
+export const RootNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={BottomTabs} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+    </Stack.Navigator>
+  );
+};
+
 const styles = StyleSheet.create({
-  fabIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  centerCameraFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 24,
+    borderWidth: 4,
+    borderColor: Colors.surface,
     shadowColor: Colors.primaryDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 6,
   },
 });

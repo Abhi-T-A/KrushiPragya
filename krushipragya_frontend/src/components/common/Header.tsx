@@ -1,53 +1,62 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
-import { MapPin, Globe2, UserCheck } from 'lucide-react-native';
+import { MapPin, Globe2, User } from 'lucide-react-native';
 
 export const Header: React.FC<{ title?: string; showVillage?: boolean }> = ({
   title,
   showVillage = true,
 }) => {
-  const { user, toggleRole } = useAuth();
-  const { language, setLanguage, t } = useLanguage();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+  const { user } = useAuth();
+  const { language, setLanguage } = useLanguage();
+
+  const villageDisplayName = user?.villageName
+    ? (language === 'kn'
+        ? user.villageName.replace(/\(.*?\)/g, '').trim()
+        : (user.villageName.includes('(')
+            ? user.villageName.match(/\((.*?)\)/)?.[1] || user.villageName
+            : user.villageName))
+    : 'Ujire';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) + Spacing.xs }]}>
       <View style={styles.topRow}>
-        {showVillage && user && (
+        {/* Clean Location Badge */}
+        {showVillage && (
           <View style={styles.villageContainer}>
-            <MapPin size={16} color={Colors.primary} />
-            <Text style={styles.villageText}>{user.villageName}</Text>
+            <MapPin size={15} color={Colors.primary} />
+            <Text style={styles.villageText} numberOfLines={1}>
+              {villageDisplayName}
+            </Text>
           </View>
         )}
 
-        <View style={styles.actionsRow}>
-          {/* Role Pill Switcher */}
-          {user && (
-            <TouchableOpacity
-              onPress={toggleRole}
-              style={[
-                styles.roleBadge,
-                user.role === 'village_node' && styles.villageNodeBadge,
-              ]}
-            >
-              <UserCheck size={12} color={user.role === 'village_node' ? Colors.trustPurple : Colors.primaryDark} />
-              <Text style={[styles.roleText, user.role === 'village_node' && { color: Colors.trustPurple }]}>
-                {user.role === 'village_node' ? t.roleVillageNode : t.roleFarmer}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Bilingual Language Switcher */}
+        <View style={styles.rightActionsRow}>
+          {/* Language Switcher Pill */}
           <TouchableOpacity
+            activeOpacity={0.8}
             onPress={() => setLanguage(language === 'kn' ? 'en' : 'kn')}
             style={styles.langButton}
           >
-            <Globe2 size={14} color={Colors.textPrimary} />
+            <Globe2 size={13} color={Colors.primaryDark} />
             <Text style={styles.langText}>
-              {language === 'kn' ? 'EN' : 'ಕನ್ನಡ'}
+              {language === 'kn' ? 'English' : 'ಕನ್ನಡ'}
             </Text>
+          </TouchableOpacity>
+
+          {/* 1-Tap Farmer Profile Avatar */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('Profile')}
+            style={styles.profileAvatarBtn}
+          >
+            <User size={18} color={Colors.primaryDark} strokeWidth={2.4} />
           </TouchableOpacity>
         </View>
       </View>
@@ -60,7 +69,6 @@ export const Header: React.FC<{ title?: string; showVillage?: boolean }> = ({
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
     backgroundColor: Colors.background,
   },
@@ -68,59 +76,66 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.xs,
   },
   villageContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 6,
     backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+    maxWidth: '55%',
   },
   villageText: {
     ...Typography.label,
+    fontSize: 13,
+    fontWeight: '800',
     color: Colors.textPrimary,
   },
-  actionsRow: {
+  rightActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-  },
-  villageNodeBadge: {
-    backgroundColor: Colors.trustPurpleLight,
-  },
-  roleText: {
-    ...Typography.caption,
-    fontWeight: '700',
-    color: Colors.primaryDark,
-  },
   langButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    gap: 5,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 1.5,
+    borderColor: '#BFE7D7',
   },
   langText: {
     ...Typography.label,
-    color: Colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.primaryDark,
+  },
+  profileAvatarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
   },
   title: {
     ...Typography.title1,

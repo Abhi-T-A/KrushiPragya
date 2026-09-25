@@ -68,6 +68,10 @@ class CropReportResponse(BaseModel):
         default=None,
         description="Internal reference path to the stored image in storage bucket",
     )
+    status: Optional[str] = Field(
+        default="UNVERIFIED",
+        description="Verification ladder status: UNVERIFIED, AI_ANALYSED, CORROBORATED, EXPERT_VERIFIED",
+    )
     created_at: datetime = Field(
         ...,
         description="Timestamp when report was created",
@@ -76,6 +80,12 @@ class CropReportResponse(BaseModel):
         ...,
         description="Timestamp when report was last updated",
     )
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def set_default_status(cls, v: Optional[str]) -> str:
+        """Default status to UNVERIFIED if missing or None."""
+        return v or "UNVERIFIED"
 
 
 class CropReportWithCropResponse(CropReportResponse):

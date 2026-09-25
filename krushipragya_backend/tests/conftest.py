@@ -16,7 +16,11 @@ def legacy_auth_compatibility(request):
     Tests in 'test_rbac' explicitly test authentication and authorization, so they
     run against the live, unmocked security dependencies.
     """
-    if "test_rbac" in request.node.nodeid or "test_market" in request.node.nodeid:
+    if (
+        "test_rbac" in request.node.nodeid
+        or "test_market" in request.node.nodeid
+        or "test_verification" in request.node.nodeid
+    ):
         yield
         return
 

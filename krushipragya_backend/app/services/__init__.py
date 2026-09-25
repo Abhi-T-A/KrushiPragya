@@ -93,6 +93,22 @@ from app.services.llm_provider import (
     LLMResponseError,
     get_llm_provider,
 )
+from app.services.verification_service import (
+    VerificationService,
+    get_verification_service,
+    VerificationError,
+    ReportNotFoundError,
+    ReportIneligibleError,
+    SelfCorroborationError,
+    DuplicateCorroborationError,
+    InvalidObservationTypeError,
+    DuplicateVerificationRequestError,
+    RequestNotFoundError,
+    RequestAlreadyFinalizedError,
+    UnauthorizedExpertError,
+    InvalidExpertDecisionError,
+    UnauthorizedAccessError,
+)
 
 
 
@@ -164,4 +180,18 @@ __all__ = [
     "get_llm_provider",
     "get_farmer_advisory_service",
     "OLLAMA_ADVISORY_SYSTEM_PROMPT",
+    "VerificationService",
+    "get_verification_service",
+    "VerificationError",
+    "ReportNotFoundError",
+    "ReportIneligibleError",
+    "SelfCorroborationError",
+    "DuplicateCorroborationError",
+    "InvalidObservationTypeError",
+    "DuplicateVerificationRequestError",
+    "RequestNotFoundError",
+    "RequestAlreadyFinalizedError",
+    "UnauthorizedExpertError",
+    "InvalidExpertDecisionError",
+    "UnauthorizedAccessError",
 ]

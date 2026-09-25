@@ -158,6 +158,12 @@ class Settings(BaseSettings):
         description="User-Agent header sent to government scheme portals",
     )
 
+    # Verification & Community Corroboration Configuration
+    MIN_CORROBORATIONS_FOR_VERIFICATION: int = Field(
+        default=2,
+        description="Minimum number of agreeing community corroborations required to advance status from AI_ANALYSED to CORROBORATED",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

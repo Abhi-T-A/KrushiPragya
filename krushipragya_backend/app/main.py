@@ -19,6 +19,7 @@ from app.market.routers.farmer_market import router as farmer_market_router
 from app.market.routers.buyer_market import router as buyer_market_router
 from app.schemes.routers.schemes import router as schemes_router
 from app.schemes.routers.admin import router as admin_schemes_router
+from app.api.v1.verification import router as verification_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -108,5 +109,6 @@ app.include_router(buyer_market_router, prefix="/api/v1")
 app.include_router(market_public_router, prefix="/api/v1")
 app.include_router(schemes_router, prefix="/api/v1")
 app.include_router(admin_schemes_router, prefix="/api/v1")
+app.include_router(verification_router, prefix="/api/v1")
 
 

@@ -194,14 +194,19 @@ class CropReportDiagnosisService:
         # 8, 9 & 10. Persist, commit, and return
         try:
             db.add(diagnosis)
+            # Advance trust ladder status: UNVERIFIED -> AI_ANALYSED (never downgrade higher stage)
+            if getattr(report, "status", None) == "UNVERIFIED" or not getattr(report, "status", None):
+                report.status = "AI_ANALYSED"
+                db.add(report)
             db.commit()
             db.refresh(diagnosis)
             logger.info(
-                "Successfully persisted diagnosis %s for report %s: %s (confidence: %.4f)",
+                "Successfully persisted diagnosis %s for report %s: %s (confidence: %.4f, status: %s)",
                 diagnosis.id,
                 report_id,
                 diagnosis.predicted_class,
                 diagnosis.confidence,
+                report.status,
             )
             return diagnosis
         except Exception:

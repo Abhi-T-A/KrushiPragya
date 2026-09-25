@@ -6,6 +6,7 @@ from app.api.v1.farmer import router as farmer_router
 from app.api.v1.farmer_crop import router as farmer_crop_router
 from app.api.v1.crop_report import router as crop_report_router
 from app.api.v1.crop_report_diagnosis import router as crop_report_diagnosis_router
+from app.api.v1.farmer_advisory import router as farmer_advisory_router
 
 __all__ = [
     "health_router",
@@ -15,4 +16,5 @@ __all__ = [
     "farmer_crop_router",
     "crop_report_router",
     "crop_report_diagnosis_router",
+    "farmer_advisory_router",
 ]

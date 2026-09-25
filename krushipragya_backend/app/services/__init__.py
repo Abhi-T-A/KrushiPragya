@@ -35,7 +35,11 @@ from app.services.forecast_advisory_service import (
     ForecastAdvisoryResult,
     UnsupportedRule,
 )
-from app.services.farmer_advisory_service import FarmerAdvisoryService
+from app.services.farmer_advisory_service import (
+    FarmerAdvisoryService,
+    get_farmer_advisory_service,
+    OLLAMA_ADVISORY_SYSTEM_PROMPT,
+)
 from app.services.disease_detection_service import (
     DiseaseDetectionService,
     SUPPORTED_CROPS,
@@ -78,6 +82,16 @@ from app.services.crop_report_diagnosis_service import (
     CropReportDiagnosisServiceError,
     CropReportImageNotFoundError,
     get_crop_report_diagnosis_service,
+)
+from app.services.llm_provider import (
+    LLMProvider,
+    GroqProvider,
+    OllamaProvider,
+    LLMProviderError,
+    LLMConnectionError,
+    LLMTimeoutError,
+    LLMResponseError,
+    get_llm_provider,
 )
 
 
@@ -140,4 +154,14 @@ __all__ = [
     "CropReportDiagnosisServiceError",
     "CropReportImageNotFoundError",
     "get_crop_report_diagnosis_service",
+    "LLMProvider",
+    "GroqProvider",
+    "OllamaProvider",
+    "LLMProviderError",
+    "LLMConnectionError",
+    "LLMTimeoutError",
+    "LLMResponseError",
+    "get_llm_provider",
+    "get_farmer_advisory_service",
+    "OLLAMA_ADVISORY_SYSTEM_PROMPT",
 ]

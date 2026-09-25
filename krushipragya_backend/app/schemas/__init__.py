@@ -44,6 +44,11 @@ from app.schemas.crop_report import (
     CropReportDiagnosisResponse,
     CropReportDiagnosisRecordResponse,
 )
+from app.schemas.advisory import (
+    FarmerAdvisoryRequest,
+    FarmerComprehensiveAdvisoryResponse,
+    StructuredAdvisoryContext,
+)
 
 __all__ = [
     "HealthResponse",
@@ -81,4 +86,6 @@ __all__ = [
     "DiseasePredictionResult",
     "CropReportDiagnosisResponse",
     "CropReportDiagnosisRecordResponse",
+    "FarmerAdvisoryRequest",
+    "FarmerComprehensiveAdvisoryResponse",
 ]

@@ -13,6 +13,7 @@ from app.api.v1.farmer import router as farmer_router
 from app.api.v1.farmer_crop import router as farmer_crop_router
 from app.api.v1.crop_report import router as crop_report_router
 from app.api.v1.crop_report_diagnosis import router as crop_report_diagnosis_router
+from app.api.v1.farmer_advisory import router as farmer_advisory_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -73,5 +74,6 @@ app.include_router(farmer_router, prefix="/api/v1")
 app.include_router(farmer_crop_router, prefix="/api/v1")
 app.include_router(crop_report_router, prefix="/api/v1")
 app.include_router(crop_report_diagnosis_router, prefix="/api/v1")
+app.include_router(farmer_advisory_router, prefix="/api/v1")
 
 

@@ -40,6 +40,42 @@ class Settings(BaseSettings):
         description="Path to directory containing trained disease classification model checkpoints (empty string defaults to <project_root>/models/disease)",
     )
 
+    # LLM Provider Configuration (Groq, Ollama)
+    LLM_PROVIDER: str = Field(
+        default="ollama",
+        description="Active LLM provider implementation ('ollama' or 'groq')",
+    )
+    LLM_BASE_URL: str = Field(
+        default="http://localhost:11434",
+        description="Base URL for LLM API server (e.g. http://localhost:11434 or https://api.groq.com/openai/v1)",
+    )
+    LLM_API_KEY: Optional[str] = Field(
+        default=None,
+        description="API key for external LLM provider (e.g. Groq)",
+    )
+    LLM_MODEL: str = Field(
+        default="qwen3:8b",
+        description="Model identifier to use for LLM text generation (e.g. qwen3:8b or openai/gpt-oss-120b)",
+    )
+    LLM_TEMPERATURE: float = Field(
+        default=0.0,
+        description="Sampling temperature for LLM completions",
+    )
+    LLM_TIMEOUT: float = Field(
+        default=300.0,
+        description="Timeout in seconds for LLM inference requests",
+    )
+
+    # Legacy compatibility aliases for Ollama
+    OLLAMA_BASE_URL: str = Field(
+        default="http://localhost:11434",
+        description="Legacy fallback for Ollama base URL",
+    )
+    OLLAMA_MODEL: str = Field(
+        default="qwen3:8b",
+        description="Legacy fallback for Ollama model name",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -11,7 +11,7 @@ Validates the multi-stage defense gate:
 """
 import io
 import math
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw, ImageFilter
@@ -508,3 +508,176 @@ class TestDiseasePredictionAPI:
             assert data["status"] == "rejected"
             assert data["reason_code"] == "MODEL_UNAVAILABLE"
             assert data["input_verified"] is False
+
+
+# ==============================================================================
+# 6. Inference Gating Regression Test Suite (10 Required Regression Tests)
+# ==============================================================================
+
+def make_laptop_image_bytes() -> bytes:
+    """Generate deterministic synthetic laptop keyboard image bytes."""
+    img = Image.new("RGB", (400, 300), color=(50, 52, 55))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([30, 20, 370, 200], fill=(35, 36, 38))
+    for r in range(5):
+        y = 30 + r * 32
+        for c in range(10):
+            x = 40 + c * 32
+            draw.rectangle([x, y, x + 26, y + 26], fill=(20, 20, 22), outline=(50, 50, 55))
+            draw.line([x + 10, y + 10, x + 16, y + 16], fill=(220, 220, 220))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    return buf.getvalue()
+
+
+class TestInferenceGatingRegressionSuite:
+    """Regression test suite guaranteeing that closed-set disease models cannot classify OOD objects."""
+
+    def test_1_laptop_image_with_coconut_selection_returns_irrelevant_image(self):
+        """1. Laptop image + Coconut selection -> IRRELEVANT_IMAGE with diagnosis=None and confidence=None."""
+        laptop_bytes = make_laptop_image_bytes()
+        response = client.post(
+            "/api/v1/disease/predict",
+            data={"crop": "coconut"},
+            files={"file": ("laptop.jpg", laptop_bytes, "image/jpeg")},
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert data["status"] == "rejected"
+        assert data["state"] == "IRRELEVANT_IMAGE"
+        assert data["reason_code"] == "IRRELEVANT_IMAGE"
+        assert data["diagnosis"] is None
+        assert data["confidence"] is None
+        assert data["crop"]["code"] == "coconut"
+        assert data["crop"]["name_en"] == "Coconut"
+        assert data["crop"]["name_kn"] == "ತೆಂಗು"
+
+    def test_2_laptop_image_with_arecanut_selection_returns_irrelevant_image(self):
+        """2. Laptop image + Arecanut selection -> IRRELEVANT_IMAGE."""
+        laptop_bytes = make_laptop_image_bytes()
+        response = client.post(
+            "/api/v1/disease/predict",
+            data={"crop": "arecanut"},
+            files={"file": ("laptop.jpg", laptop_bytes, "image/jpeg")},
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert data["status"] == "rejected"
+        assert data["state"] == "IRRELEVANT_IMAGE"
+        assert data["reason_code"] == "IRRELEVANT_IMAGE"
+        assert data["diagnosis"] is None
+        assert data["confidence"] is None
+
+    def test_3_crop_mismatch_detected_when_models_diverge(self):
+        """3. Plant/crop image with mismatching crop selection -> CROP_MISMATCH."""
+        from app.services.crop_relevance_service import get_crop_relevance_service
+        relevance_svc = get_crop_relevance_service()
+        # Simulate cross-predictions where requested coconut has 0.15 but paddy has 0.88
+        cross_preds = {"coconut": 0.15, "paddy": 0.88}
+        is_compat, state, msg_en, msg_kn = relevance_svc.evaluate_crop_compatibility("coconut", cross_preds)
+        assert is_compat is False
+        assert state == "CROP_MISMATCH"
+        assert "does not match" in msg_en
+
+    def test_4_valid_coconut_image_executes_disease_model(self):
+        """4. Valid Coconut leaf image + Coconut selection -> disease model executes."""
+        leaf_bytes = make_textured_leaf_bytes(healthy=True)
+        response = client.post(
+            "/api/v1/disease/predict",
+            data={"crop": "coconut"},
+            files={"file": ("coconut_leaf.jpg", leaf_bytes, "image/jpeg")},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["crop"] == "coconut"
+        assert data["input_verified"] is True
+        assert data["confidence"] > 0.0
+
+    def test_5_valid_arecanut_image_executes_disease_model(self):
+        """5. Valid Arecanut leaf image + Arecanut selection -> disease model executes."""
+        leaf_bytes = make_textured_leaf_bytes(healthy=True)
+        response = client.post(
+            "/api/v1/disease/predict",
+            data={"crop": "arecanut"},
+            files={"file": ("areca_leaf.jpg", leaf_bytes, "image/jpeg")},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["crop"] == "arecanut"
+        assert data["input_verified"] is True
+        assert data["status"] in ("success", "uncertain")
+
+    def test_6_blurry_image_returns_low_quality(self):
+        """6. Blurry image -> LOW_QUALITY (IMAGE_TOO_BLURRY)."""
+        blurry_bytes = make_blurry_image_bytes(radius=20.0)
+        response = client.post(
+            "/api/v1/disease/predict",
+            data={"crop": "coconut"},
+            files={"file": ("blur.jpg", blurry_bytes, "image/jpeg")},
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert data["status"] == "rejected"
+        assert data["reason_code"] == "IMAGE_TOO_BLURRY"
+
+    def test_7_ambiguous_crop_image_returns_uncertain_image(self):
+        """7. Ambiguous crop image below confidence threshold -> UNCERTAIN_IMAGE."""
+        leaf_bytes = make_textured_leaf_bytes(healthy=True)
+        mock_model = MagicMock()
+        # Flat probability distribution across 4 classes (~25% each)
+        mock_model.return_value = torch.tensor([[1.0, 1.0, 1.0, 1.0]])
+        with patch.object(
+            DiseaseDetectionService,
+            "get_or_load_model",
+            return_value=(mock_model, ["Blast", "Bacterial_Leaf_Blight", "Brown_Plant_Hopper", "Sheath_Blight"]),
+        ):
+            response = client.post(
+                "/api/v1/disease/predict",
+                data={"crop": "paddy"},
+                files={"file": ("ambiguous.jpg", leaf_bytes, "image/jpeg")},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "uncertain"
+            assert data["state"] == "UNCERTAIN_IMAGE"
+            assert data["predicted_class"] is None
+            assert data["diagnosis"] is None
+
+    def test_8_irrelevant_image_never_creates_disease_diagnosis(self):
+        """8. Irrelevant image must never create a disease diagnosis."""
+        laptop_bytes = make_laptop_image_bytes()
+        service = DiseaseDetectionService()
+        with pytest.raises(VerificationRejectionError) as exc_info:
+            service.predict(raw_crop="coconut", image_bytes=laptop_bytes, verify_input=True)
+        assert exc_info.value.reason_code == "IRRELEVANT_IMAGE"
+
+    def test_9_irrelevant_image_never_shows_disease_confidence(self):
+        """9. Irrelevant image response must have confidence=None, not 58% or any diagnosis probability."""
+        laptop_bytes = make_laptop_image_bytes()
+        response = client.post(
+            "/api/v1/disease/predict",
+            data={"crop": "coconut"},
+            files={"file": ("laptop.jpg", laptop_bytes, "image/jpeg")},
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert data["confidence"] is None
+        assert data["diagnosis"] is None
+
+    def test_10_existing_disease_models_remain_untouched(self):
+        """10. Verify that all 7 disease models, filenames, and versions remain 100% untouched."""
+        expected = {
+            "arecanut": ("krushisetu_efficientnet_b0_best.pth", 6, "arecanut-v1"),
+            "paddy": ("krushisetu_paddy_efficientnet_b0_best.pth", 4, "paddy-v1"),
+            "coconut": ("krushisetu_coconut_efficientnet_b0_best.pth", 5, "coconut-v1"),
+            "black_pepper": ("krushisetu_black_pepper_efficientnet_b0_best.pth", 3, "black-pepper-v1"),
+            "cardamom": ("krushisetu_cardamom_efficientnet_b0_best.pth", 3, "cardamom-v1"),
+            "turmeric": ("krushisetu_turmeric_efficientnet_b0_best.pth", 4, "turmeric-v1"),
+            "ginger": ("krushisetu_ginger_efficientnet_b0_best.pth", 4, "ginger-v1"),
+        }
+        for crop, (filename, num_classes, version) in expected.items():
+            spec = SUPPORTED_CROPS[crop]
+            assert spec.filename == filename
+            assert spec.expected_num_classes == num_classes
+            assert spec.model_version == version
+

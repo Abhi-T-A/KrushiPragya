@@ -33,7 +33,9 @@ export interface ClassPrediction {
 export interface DiseasePredictionResult {
   crop: string;
   status: 'success' | 'uncertain' | 'rejected';
+  state?: string | null;
   predicted_class?: string | null;
+  diagnosis?: string | null;
   confidence: number;
   low_confidence: boolean;
   input_verified: boolean;
@@ -43,6 +45,15 @@ export interface DiseasePredictionResult {
   disease_info?: DiseaseInfo | null;
   predictions?: ClassPrediction[];
   metrics?: Record<string, any>;
+  disease?: string | null;
+  disease_name_kn?: string | null;
+  knowledge_base_reference?: string | null;
+  explanation_kn?: string | null;
+  approved_actions?: string[];
+  verification_state?: string;
+  generated_at?: string | null;
+  is_llm_generated?: boolean;
+  fallback_used?: boolean;
 }
 
 export interface BackendCropCatalogItem {
@@ -108,6 +119,41 @@ export interface ExpertVerificationData {
   requested_at: string;
   assigned_at?: string | null;
   completed_at?: string | null;
+  payment_status?: string | null;
+  payment_mode?: string | null;
+  payment_amount?: number | null;
+  crop?: string | null;
+  diagnosis?: string | null;
+  ai_confidence?: number | null;
+}
+
+export interface ExpertQueueItemData {
+  id: string;
+  crop_report_id: string;
+  farmer_id: string;
+  expert_id?: string | null;
+  status: string;
+  crop_code?: string;
+  crop_name?: string;
+  farmer_notes?: string | null;
+  image_storage_path?: string | null;
+  image_filename?: string | null;
+  latest_diagnosis?: {
+    crop: string;
+    predicted_class: string;
+    confidence: number;
+    model_name: string;
+    created_at: string;
+  } | null;
+  corroboration_summary?: any;
+  requested_at: string;
+  assigned_at?: string | null;
+  completed_at?: string | null;
+  payment_status?: string | null;
+  payment_mode?: string | null;
+  payment_amount?: number | null;
+  diagnosis?: string | null;
+  ai_confidence?: number | null;
 }
 
 export interface VerificationStatusData {
@@ -229,14 +275,17 @@ export const predictCropDiseaseDirect = async (
     if (error.response && error.response.data) {
       const data = error.response.data;
       if (data.status === 'rejected') {
+        const cropCodeResolved = (typeof data.crop === 'object' && data.crop?.code) ? data.crop.code : (data.crop || cropCode);
         return {
-          crop: cropCode,
+          crop: cropCodeResolved,
           status: 'rejected',
+          state: data.state || data.reason_code || 'IRRELEVANT_IMAGE',
           predicted_class: null,
+          diagnosis: null,
           confidence: 0,
           low_confidence: false,
           input_verified: false,
-          reason_code: data.reason_code || 'INVALID_IMAGE',
+          reason_code: data.reason_code || data.state || 'INVALID_IMAGE',
           message: data.message || data.detail || 'Image rejected by input verification.',
           metrics: data.metrics || {},
         };
@@ -245,7 +294,9 @@ export const predictCropDiseaseDirect = async (
         return {
           crop: cropCode,
           status: 'rejected',
+          state: 'INVALID_IMAGE',
           predicted_class: null,
+          diagnosis: null,
           confidence: 0,
           low_confidence: false,
           input_verified: false,
@@ -373,15 +424,66 @@ export const requestAgriExpertVerification = async (
   reportId: string,
   notes?: string,
   phone?: string,
-  farmerId?: string
+  farmerId?: string,
+  paymentData?: {
+    payment_status?: string;
+    payment_mode?: string;
+    amount?: number;
+    crop?: string;
+    diagnosis?: string;
+    ai_confidence?: number;
+  }
 ): Promise<ExpertVerificationData> => {
   const res = await cropHealthClient.post<ExpertVerificationData>(
     `/crop-reports/${reportId}/verification-request`,
     {
       notes: notes || 'Expert diagnosis requested by farmer',
+      payment_status: paymentData?.payment_status || 'SUCCESS',
+      payment_mode: paymentData?.payment_mode || 'DEMO',
+      amount: paymentData?.amount || 49.0,
+      crop: paymentData?.crop,
+      diagnosis: paymentData?.diagnosis,
+      ai_confidence: paymentData?.ai_confidence,
     },
     {
       headers: buildFarmerHeaders(phone, farmerId),
+    }
+  );
+  return res.data;
+};
+
+export const fetchExpertQueue = async (
+  phone?: string,
+  expertId?: string
+): Promise<{ items: ExpertQueueItemData[]; total: number }> => {
+  const res = await cropHealthClient.get<{ items: ExpertQueueItemData[]; total: number }>(
+    '/expert/verifications',
+    {
+      headers: buildFarmerHeaders(phone, expertId),
+    }
+  );
+  return res.data;
+};
+
+export const submitExpertDecision = async (
+  requestId: string,
+  decision: 'APPROVE' | 'CONFIRM' | 'CORRECT' | 'VERIFIED' | 'REJECT' | 'REQUEST_REVIEW' | 'NEED_MORE_INFO' | 'REQUIRES_MORE_INFORMATION',
+  finding?: string,
+  notes?: string,
+  remedy?: string,
+  phone?: string,
+  expertId?: string
+) => {
+  const res = await cropHealthClient.post(
+    `/expert/verifications/${requestId}/decision`,
+    {
+      decision,
+      finding,
+      expert_notes: notes,
+      recommended_action: remedy,
+    },
+    {
+      headers: buildFarmerHeaders(phone, expertId),
     }
   );
   return res.data;

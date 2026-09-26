@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CropReport } from '../types';
-import { fetchFarmerRecentReports, BackendCropReportItem } from '../services/cropHealthApi';
+import {
+  fetchFarmerRecentReports,
+  fetchFarmerRegisteredCrops,
+  BackendCropReportItem,
+  BackendFarmerCropItem,
+} from '../services/cropHealthApi';
 import { useAuth } from './AuthContext';
 
 interface ReportContextType {
@@ -34,10 +39,59 @@ const CROP_LABELS: Record<string, { kn: string; en: string }> = {
   ginger: { kn: 'ಶುಂಠಿ', en: 'Ginger' },
 };
 
-const mapBackendToCropReport = (item: BackendCropReportItem): CropReport => {
-  const cropCode = item.farmer_crop?.crop?.code?.toLowerCase() || 'arecanut';
-  const labels = CROP_LABELS[cropCode] || { kn: item.farmer_crop?.crop?.name_kn || 'ಬೆಳೆ', en: item.farmer_crop?.crop?.name_en || 'Crop' };
+const KANNADA_TO_CODE: Record<string, string> = {
+  'ಅಡಿಕೆ': 'arecanut',
+  'ಭತ್ತ': 'paddy',
+  'ತೆಂಗು': 'coconut',
+  'ಕಾಳುಮೆಣಸು': 'black_pepper',
+  'ಏಲಕ್ಕಿ': 'cardamom',
+  'ಅರಿಶಿನ': 'turmeric',
+  'ಶುಂಠಿ': 'ginger',
+};
+
+const mapBackendToCropReport = (
+  item: BackendCropReportItem,
+  farmerCropMap?: Map<string, { code: string; name_kn: string; name_en: string }>
+): CropReport => {
+  // 1. Resolve registered crop directly from backend data (matching farmer_crop_id)
+  const registeredCrop = item.farmer_crop_id ? farmerCropMap?.get(item.farmer_crop_id) : undefined;
+
+  // 2. Embedded crop if backend ever provides it
+  const embeddedCrop = item.farmer_crop?.crop;
+
+  // 3. Or from diagnoses if available
   const latestDiag = item.diagnoses && item.diagnoses.length > 0 ? item.diagnoses[0] : null;
+  const diagCrop = (item as any).crop || latestDiag?.crop;
+
+  // Authoritative crop code
+  let rawCode = (
+    registeredCrop?.code ||
+    embeddedCrop?.code ||
+    diagCrop ||
+    ''
+  ).toLowerCase().trim();
+
+  if (KANNADA_TO_CODE[rawCode]) {
+    rawCode = KANNADA_TO_CODE[rawCode];
+  } else if (rawCode === 'pepper') {
+    rawCode = 'black_pepper';
+  }
+
+  const cropCode = rawCode || 'arecanut';
+  const fallback = CROP_LABELS[cropCode];
+
+  // If backend already provides Kannada/English crop names, use those directly!
+  const cropNameKn =
+    registeredCrop?.name_kn ||
+    embeddedCrop?.name_kn ||
+    fallback?.kn ||
+    (cropCode ? cropCode : 'ಬೆಳೆ');
+
+  const cropNameEn =
+    registeredCrop?.name_en ||
+    embeddedCrop?.name_en ||
+    fallback?.en ||
+    (cropCode ? (cropCode.charAt(0).toUpperCase() + cropCode.slice(1)) : 'Crop');
 
   const dateObj = new Date(item.created_at);
   const formattedDate = !isNaN(dateObj.getTime())
@@ -49,8 +103,8 @@ const mapBackendToCropReport = (item: BackendCropReportItem): CropReport => {
     backendReportId: item.id,
     farmerCropId: item.farmer_crop_id,
     crop: cropCode,
-    cropNameKn: labels.kn,
-    cropNameEn: labels.en,
+    cropNameKn,
+    cropNameEn,
     photoUri: item.image_storage_path ? `https://offmpvifgmzvclrvzweq.supabase.co/storage/v1/object/public/crop-report-images/${item.image_storage_path}` : undefined,
     symptoms: item.notes || '',
     predictedDisease: latestDiag ? latestDiag.predicted_class : 'ಪರಿಶೀಲನೆ ಬಾಕಿಯಿದೆ',
@@ -75,9 +129,26 @@ export const ReportProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const phone = user?.phone || '9876543210';
     setIsLoadingReports(true);
     try {
-      const data = await fetchFarmerRecentReports(farmerId, phone);
-      if (Array.isArray(data)) {
-        const mapped = data.map(mapBackendToCropReport);
+      const [reportsData, registeredCrops] = await Promise.all([
+        fetchFarmerRecentReports(farmerId, phone),
+        fetchFarmerRegisteredCrops(farmerId, phone).catch(() => [] as BackendFarmerCropItem[]),
+      ]);
+
+      const farmerCropMap = new Map<string, { code: string; name_kn: string; name_en: string }>();
+      if (Array.isArray(registeredCrops)) {
+        for (const fc of registeredCrops) {
+          if (fc && fc.id && fc.crop) {
+            farmerCropMap.set(fc.id, {
+              code: fc.crop.code,
+              name_kn: fc.crop.name_kn,
+              name_en: fc.crop.name_en,
+            });
+          }
+        }
+      }
+
+      if (Array.isArray(reportsData)) {
+        const mapped = reportsData.map((item) => mapBackendToCropReport(item, farmerCropMap));
         setReports(mapped);
       }
     } catch (e) {

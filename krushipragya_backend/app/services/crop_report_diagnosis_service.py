@@ -174,6 +174,14 @@ class CropReportDiagnosisService:
         )
         prediction = self.disease_service.predict(raw_crop=crop_code, image_bytes=image_bytes)
 
+        # Do NOT create disease diagnosis if prediction is not confident or was rejected/uncertain
+        if getattr(prediction, "status", "success") != "success" or not getattr(prediction, "predicted_class", None):
+            logger.warning(
+                "Prediction for report %s is not a confident diagnosis (status: %s, class: %s). Skipping diagnosis creation.",
+                report_id, getattr(prediction, "status", None), getattr(prediction, "predicted_class", None),
+            )
+            return None
+
         # 7. Create CropReportDiagnosis record
         diagnosis = CropReportDiagnosis(
             id=uuid.uuid4(),

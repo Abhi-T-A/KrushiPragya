@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import JSONResponse
 
 from app.schemas.disease import DiseasePredictionResponse
+from app.services.crop_relevance_service import CROP_METADATA
 from app.services.disease_detection_service import (
     DiseaseDetectionService,
     EmptyImageError,
@@ -28,6 +29,10 @@ def get_disease_detection_service() -> DiseaseDetectionService:
     return DiseaseDetectionService()
 
 
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
 @router.post(
     "/disease/predict",
     response_model=DiseasePredictionResponse,
@@ -36,12 +41,12 @@ def get_disease_detection_service() -> DiseaseDetectionService:
     description=(
         "Analyzes an uploaded crop photo through an Input Verification Layer "
         "(checking resolution, blur, lighting, exposure, and leaf relevance), "
-        "executes crop-specific EfficientNet-B0 inference, applies a 50% confidence gate, "
-        "and attaches curated ICAR disease intelligence."
+        "executes crop-specific EfficientNet-B0 inference, applies a conservative 70% confidence gate, "
+        "attaches curated ICAR disease intelligence, and provides Qwen explanation and Kannada localization."
     ),
     responses={
         200: {"description": "Inference successfully completed (status 'success' or 'uncertain')"},
-        400: {"description": "Input rejected (empty, corrupt, blurry, dark, overexposed, or irrelevant non-leaf image)"},
+        400: {"description": "Input rejected (empty, corrupt, blurry, dark, overexposed, wrong file type, or irrelevant non-leaf image)"},
         422: {"description": "Unsupported crop identifier"},
         503: {"description": "Model checkpoint unavailable for requested crop"},
     },
@@ -67,6 +72,51 @@ async def predict_disease(
             detail="Uploaded image file is empty.",
         )
 
+    norm_crop = crop.strip().lower().replace("-", "_").replace(" ", "_") if crop else "unknown"
+    crop_info = CROP_METADATA.get(norm_crop, {
+        "code": norm_crop,
+        "name_en": norm_crop.title(),
+        "name_kn": norm_crop,
+    })
+
+    # Validate file type / MIME for production security
+    if upload_file.filename:
+        from pathlib import Path
+        ext = Path(upload_file.filename).suffix.lower()
+        if ext and ext not in ALLOWED_EXTENSIONS:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "status": "rejected",
+                    "state": "INVALID_IMAGE",
+                    "reason_code": "INVALID_IMAGE",
+                    "crop": crop_info,
+                    "diagnosis": None,
+                    "confidence": None,
+                    "input_verified": False,
+                    "message": f"Unsupported file type '{ext}'. Allowed image formats: JPEG, PNG, WEBP.",
+                    "detail": f"Unsupported file type '{ext}'. Allowed image formats: JPEG, PNG, WEBP.",
+                },
+            )
+
+    if upload_file.content_type:
+        c_type = upload_file.content_type.lower()
+        if c_type not in ALLOWED_MIME_TYPES and c_type != "application/octet-stream":
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "status": "rejected",
+                    "state": "INVALID_IMAGE",
+                    "reason_code": "INVALID_IMAGE",
+                    "crop": crop_info,
+                    "diagnosis": None,
+                    "confidence": None,
+                    "input_verified": False,
+                    "message": f"Invalid MIME type '{c_type}'. Allowed image formats: JPEG, PNG, WEBP.",
+                    "detail": f"Invalid MIME type '{c_type}'. Allowed image formats: JPEG, PNG, WEBP.",
+                },
+            )
+
     try:
         image_bytes = await upload_file.read()
         return service.predict(raw_crop=crop, image_bytes=image_bytes, verify_input=True, enforce_confidence_gate=True)
@@ -79,11 +129,25 @@ async def predict_disease(
 
     except VerificationRejectionError as exc:
         # Structured defensive input verification rejection
+        norm_crop = crop.strip().lower().replace("-", "_").replace(" ", "_") if crop else "unknown"
+        crop_info = CROP_METADATA.get(norm_crop, {
+            "code": norm_crop,
+            "name_en": norm_crop.title(),
+            "name_kn": norm_crop,
+        })
+        logger.info(
+            "[DISEASE] final state: %s for crop '%s' (message: %s)",
+            exc.reason_code, norm_crop, exc.message,
+        )
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "status": "rejected",
+                "state": exc.reason_code,
                 "reason_code": exc.reason_code,
+                "crop": crop_info,
+                "diagnosis": None,
+                "confidence": None,
                 "input_verified": False,
                 "message": exc.message,
                 "detail": exc.message,
@@ -92,11 +156,21 @@ async def predict_disease(
         )
 
     except EmptyImageError as exc:
+        norm_crop = crop.strip().lower().replace("-", "_").replace(" ", "_") if crop else "unknown"
+        crop_info = CROP_METADATA.get(norm_crop, {
+            "code": norm_crop,
+            "name_en": norm_crop.title(),
+            "name_kn": norm_crop,
+        })
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "status": "rejected",
+                "state": "INVALID_IMAGE",
                 "reason_code": "INVALID_IMAGE",
+                "crop": crop_info,
+                "diagnosis": None,
+                "confidence": None,
                 "input_verified": False,
                 "message": "Uploaded image file is empty.",
                 "detail": "Uploaded image file is empty.",
@@ -104,11 +178,21 @@ async def predict_disease(
         )
 
     except InvalidImageError as exc:
+        norm_crop = crop.strip().lower().replace("-", "_").replace(" ", "_") if crop else "unknown"
+        crop_info = CROP_METADATA.get(norm_crop, {
+            "code": norm_crop,
+            "name_en": norm_crop.title(),
+            "name_kn": norm_crop,
+        })
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "status": "rejected",
+                "state": "INVALID_IMAGE",
                 "reason_code": "INVALID_IMAGE",
+                "crop": crop_info,
+                "diagnosis": None,
+                "confidence": None,
                 "input_verified": False,
                 "message": str(exc),
                 "detail": str(exc),

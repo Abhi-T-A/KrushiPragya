@@ -24,6 +24,11 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 import torch
 import torch.nn.functional as F
 
+from app.services.crop_relevance_service import (
+    CropRelevanceService,
+    get_crop_relevance_service,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,11 +85,13 @@ class InputVerificationService:
         min_height: int = MIN_IMAGE_HEIGHT,
         min_blur_var: float = MIN_LAPLACIAN_VARIANCE,
         min_foliage_frac: float = MIN_FOLIAGE_FRACTION,
+        relevance_service: Optional[CropRelevanceService] = None,
     ):
         self.min_width = min_width
         self.min_height = min_height
         self.min_blur_var = min_blur_var
         self.min_foliage_frac = min_foliage_frac
+        self.relevance_service = relevance_service or get_crop_relevance_service()
 
         # 3x3 discrete Laplacian kernel for edge/blur variance computation
         self._laplacian_kernel = torch.tensor(
@@ -228,7 +235,7 @@ class InputVerificationService:
             return (
                 False,
                 "IRRELEVANT_IMAGE",
-                "No suitable crop leaf could be identified. Please upload a clear image of the affected crop leaf.",
+                "The uploaded image does not appear to contain the selected crop. Please upload a clear photo of the crop leaf.",
                 metrics,
             )
 
@@ -318,9 +325,10 @@ class InputVerificationService:
                 metrics=metrics,
             )
 
-        # Step 3 & 4: Quality (Blur, Lighting, Exposure) & Leaf Relevance
+        # Step 3 & 4: Quality (Blur, Lighting, Exposure) & Low-level Leaf Consistency
         ok_qual, reason_qual, msg_qual, metrics = self.evaluate_quality_and_relevance(img, metrics)
         if not ok_qual:
+            logger.info("[DISEASE] image validation: REJECTED (%s): %s", reason_qual, msg_qual)
             return VerificationResult(
                 is_valid=False,
                 status="rejected",
@@ -329,6 +337,23 @@ class InputVerificationService:
                 metrics=metrics,
             )
 
+        # Step 5: Semantic Visual Relevance Gate (MobileNetV3 + Botanical Analysis)
+        relevance_res = self.relevance_service.classify_visual_relevance(img, crop)
+        metrics.update(relevance_res.metrics)
+        if not relevance_res.is_relevant:
+            logger.info(
+                "[DISEASE] image validation: REJECTED by visual relevance gate (%s): %s",
+                relevance_res.state, relevance_res.message,
+            )
+            return VerificationResult(
+                is_valid=False,
+                status="rejected",
+                reason_code=relevance_res.state,
+                message=relevance_res.message,
+                metrics=metrics,
+            )
+
+        logger.info("[DISEASE] image validation: PASSED for crop '%s'", crop)
         return VerificationResult(
             is_valid=True,
             status="success",

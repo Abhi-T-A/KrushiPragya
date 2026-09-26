@@ -19,7 +19,7 @@ class DiseaseKnowledgeItem:
     disease_name_en: str
     disease_name_kn: str
     scientific_name: Optional[str]
-    category: str  # FUNGAL, BACTERIAL, VIRAL, PEST, ABIOTIC, HEALTHY
+    category: str  # FUNGAL, BACTERIAL, PHYTOPLASMA, VIRAL, PEST, ABIOTIC, HEALTHY
     symptoms: str
     cultural_control: str
     remedy_en: str
@@ -103,7 +103,7 @@ _DISEASE_KB: Dict[Tuple[str, str], DiseaseKnowledgeItem] = {
         disease_name_en="Yellow Leaf Disease (YLD)",
         disease_name_kn="ಹಳದಿ ಎಲೆ ರೋಗ",
         scientific_name="Phytoplasma (vector: Proutista moesta)",
-        category="VIRAL",
+        category="PHYTOPLASMA",
         symptoms="Characteristic bright chlorosis/yellowing starting from inner whorl leaflet tips, necrosis of leaf margins, blackening of kernel (choor), stunted crown.",
         cultural_control="Eradicate severely diseased, uneconomic palms. Grow YLD-resistant South Kanara selections or hybrid lines. Plant intercrops for microclimate moderation.",
         remedy_en="Apply balanced nutrition with additional Magnesium Sulphate (500g/palm/year) and organic manure. Spray Imidacloprid @ 0.5ml/L to manage planthopper insect vectors.",

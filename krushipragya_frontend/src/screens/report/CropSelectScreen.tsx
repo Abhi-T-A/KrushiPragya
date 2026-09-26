@@ -391,8 +391,64 @@ export const CropSelectScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         ) : reports.length > 0 ? (
           <View style={styles.reportsContainer}>
             {reports.map((report) => {
+              // Priority 1: Match against registered farmer crops from backend
+              const registeredCrop = registeredFarmerCrops.find(
+                (rc) => rc.id === report.farmerCropId
+              )?.crop;
+
+              // Priority 2: Extract crop code from registered crop or report
+              let rawCode = (
+                registeredCrop?.code ||
+                report.crop ||
+                ''
+              ).toLowerCase().trim();
+
+              const KANNADA_TO_CODE: Record<string, string> = {
+                'ಅಡಿಕೆ': 'arecanut',
+                'ಭತ್ತ': 'paddy',
+                'ತೆಂಗು': 'coconut',
+                'ಕಾಳುಮೆಣಸು': 'black_pepper',
+                'ಏಲಕ್ಕಿ': 'cardamom',
+                'ಅರಿಶಿನ': 'turmeric',
+                'ಶುಂಠಿ': 'ginger',
+              };
+
+              if (KANNADA_TO_CODE[rawCode]) {
+                rawCode = KANNADA_TO_CODE[rawCode];
+              } else if (rawCode === 'pepper') {
+                rawCode = 'black_pepper';
+              }
+
+              // Priority 3: Fallback labels for all 7 crops
+              const FALLBACK_LABELS: Record<string, { kn: string; en: string }> = {
+                arecanut: { kn: 'ಅಡಿಕೆ', en: 'Arecanut' },
+                paddy: { kn: 'ಭತ್ತ', en: 'Paddy' },
+                coconut: { kn: 'ತೆಂಗು', en: 'Coconut' },
+                black_pepper: { kn: 'ಕಾಳುಮೆಣಸು', en: 'Black Pepper' },
+                cardamom: { kn: 'ಏಲಕ್ಕಿ', en: 'Cardamom' },
+                turmeric: { kn: 'ಅರಿಶಿನ', en: 'Turmeric' },
+                ginger: { kn: 'ಶುಂಠಿ', en: 'Ginger' },
+              };
+
+              const fallback = FALLBACK_LABELS[rawCode];
+
+              // Direct backend crop names take highest precedence
+              const cropNameKn =
+                registeredCrop?.name_kn ||
+                (report.cropNameKn && report.cropNameKn !== 'ಅಡಿಕೆ' ? report.cropNameKn : null) ||
+                fallback?.kn ||
+                report.cropNameKn ||
+                'ಬೆಳೆ';
+
+              const cropNameEn =
+                registeredCrop?.name_en ||
+                (report.cropNameEn && report.cropNameEn !== 'Arecanut' ? report.cropNameEn : null) ||
+                fallback?.en ||
+                report.cropNameEn ||
+                'Crop';
+
               const matchedCrop = SUPPORTED_CROPS.find(
-                (c) => c.code.toLowerCase() === report.crop.toLowerCase()
+                (c) => c.code.toLowerCase() === rawCode
               );
               const cropImg = matchedCrop?.image || SUPPORTED_CROPS[0].image;
 
@@ -407,7 +463,7 @@ export const CropSelectScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                     <View style={styles.reportCropBadge}>
                       <Image source={cropImg} style={styles.reportCropIcon} resizeMode="cover" />
                       <Text style={styles.reportCropName}>
-                        {report.cropNameKn} ({report.cropNameEn})
+                        {cropNameKn} ({cropNameEn})
                       </Text>
                     </View>
                     <StatusBadge status={report.status} />

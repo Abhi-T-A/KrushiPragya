@@ -74,20 +74,20 @@ const REJECTION_MESSAGES: Record<
     ctaEn: 'Retake Photo',
   },
   IRRELEVANT_IMAGE: {
-    titleKn: 'ಬೆಳೆಯ ಎಲೆ ಕಂಡುಬಂದಿಲ್ಲ',
-    titleEn: 'No Crop Leaf Detected',
-    descKn: 'ದಯವಿಟ್ಟು ಕೃಷಿ ಬೆಳೆಯ ರೋಗ ಲಕ್ಷಣವಿರುವ ಎಲೆ ಅಥವಾ ಹಣ್ಣಿನ ಸ್ಪಷ್ಟ ಫೋಟೋ ತೆಗೆದುಕೊಳ್ಳಿ.',
-    descEn: 'No suitable crop foliage found. Please upload a clear photo of the crop leaf.',
-    ctaKn: 'ಮತ್ತೆ ಫೋಟೋ ತೆಗೆದುಕೊಳ್ಳಿ',
-    ctaEn: 'Retake Photo',
+    titleKn: 'ಚಿತ್ರ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ',
+    titleEn: 'Irrelevant Image',
+    descKn: 'ಈ ಚಿತ್ರವು ಆಯ್ಕೆ ಮಾಡಿದ ಬೆಳೆಗೆ ಸಂಬಂಧಿಸಿದಂತೆ ಕಾಣುತ್ತಿಲ್ಲ.',
+    descEn: 'The uploaded image does not appear to contain the selected crop.',
+    ctaKn: 'ಮತ್ತೆ ಚಿತ್ರ ಅಪ್ಲೋಡ್ ಮಾಡಿ',
+    ctaEn: 'Upload Image Again',
   },
   CROP_MISMATCH: {
     titleKn: 'ಬೆಳೆ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ',
     titleEn: 'Crop Mismatch',
-    descKn: 'ಆಯ್ಕೆ ಮಾಡಿದ ಬೆಳೆ ಮತ್ತು ಫೋಟೋ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ.',
-    descEn: 'The selected crop and uploaded photo do not match.',
-    ctaKn: 'ಮತ್ತೆ ಆಯ್ಕೆ ಮಾಡಿ',
-    ctaEn: 'Select Crop Again',
+    descKn: 'ಆಯ್ಕೆ ಮಾಡಿದ ಬೆಳೆ ಮತ್ತು ಚಿತ್ರ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ.',
+    descEn: 'The selected crop does not match the uploaded image.',
+    ctaKn: 'ಸರಿಯಾದ ಬೆಳೆ ಆಯ್ಕೆ ಮಾಡಿ',
+    ctaEn: 'Select Correct Crop',
   },
   IMAGE_TOO_SMALL: {
     titleKn: 'ಚಿತ್ರದ ಅಳತೆ ಚಿಕ್ಕದಾಗಿದೆ',
@@ -98,12 +98,12 @@ const REJECTION_MESSAGES: Record<
     ctaEn: 'Retake Photo',
   },
   UNCERTAIN_IMAGE: {
-    titleKn: 'ಖಚಿತವಾಗಿ ಗುರುತಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ',
-    titleEn: 'Uncertain Diagnosis',
-    descKn: 'ಈ ಫೋಟೋದಿಂದ ಸಮಸ್ಯೆಯನ್ನು ಖಚಿತವಾಗಿ ಗುರುತಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.',
-    descEn: 'Could not confidently identify the condition from this photo.',
+    titleKn: 'ಖಚಿತವಾಗಿ ಗುರುತಿಸಲಾಗಲಿಲ್ಲ',
+    titleEn: 'Uncertain Image',
+    descKn: 'ಚಿತ್ರದಿಂದ ವಿಶ್ವಾಸಾರ್ಹವಾಗಿ ಬೆಳೆ ಗುರುತಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.',
+    descEn: 'The crop could not be identified reliably from this image.',
     ctaKn: 'ಮತ್ತೊಂದು ಸ್ಪಷ್ಟವಾದ ಫೋಟೋ ಪ್ರಯತ್ನಿಸಿ',
-    ctaEn: 'Try Another Photo',
+    ctaEn: 'Try Clearer Photo',
   },
   MODEL_UNAVAILABLE: {
     titleKn: 'AI ಸೇವೆ ತಾತ್ಕಾಲಿಕವಾಗಿ ಲಭ್ಯವಿಲ್ಲ',
@@ -217,10 +217,11 @@ export const PreviewSubmitScreen: React.FC<{ route: any; navigation: any }> = ({
 
       const result: DiseasePredictionResult = await predictionPromise;
 
-      // Handle Rejection
-      if (result.status === 'rejected') {
+      // Handle Rejection or Uncertain Image
+      if (result.status === 'rejected' || result.status === 'uncertain') {
+        const code = result.reason_code || (result.status === 'uncertain' ? 'UNCERTAIN_IMAGE' : 'INVALID_IMAGE');
         setRejectionData({
-          code: result.reason_code || 'INVALID_IMAGE',
+          code: code,
           message: result.message || 'Image rejected by input verification.',
         });
         setAnalysisState('rejected');
@@ -263,15 +264,15 @@ export const PreviewSubmitScreen: React.FC<{ route: any; navigation: any }> = ({
         cropNameEn,
         photoUri: currentImageUri,
         symptoms: notes,
-        predictedDisease: diseaseInfo?.disease_name_en || result.predicted_class || 'Uncertain Condition',
-        predictedDiseaseKn: diseaseInfo?.disease_name_kn || result.predicted_class || 'ಅನಿರ್ದಿಷ್ಟ ಸಮಸ್ಯೆ',
+        predictedDisease: result.disease || diseaseInfo?.disease_name_en || result.predicted_class || 'Uncertain Condition',
+        predictedDiseaseKn: result.disease_name_kn || diseaseInfo?.disease_name_kn || result.predicted_class || 'ಅನಿರ್ದಿಷ್ಟ ಸಮಸ್ಯೆ',
         scientificName: diseaseInfo?.scientific_name,
         category: diseaseInfo?.category,
         confidence: Number(result.confidence || 0),
         lowConfidence: Boolean(result.low_confidence),
         inputVerified: Boolean(result.input_verified),
         reasonCode: result.reason_code || undefined,
-        status: 'ai_analysed',
+        status: (result.verification_state?.toLowerCase() || 'ai_analysed') as any,
         villageId: user?.villageId || 'v2',
         villageName: user?.villageName || 'Ujire',
         reporterRole: 'farmer',
@@ -279,7 +280,9 @@ export const PreviewSubmitScreen: React.FC<{ route: any; navigation: any }> = ({
         remedyKn: diseaseInfo?.remedy_kn,
         remedyEn: diseaseInfo?.remedy_en,
         culturalControl: diseaseInfo?.cultural_control,
-        sourceInstitution: diseaseInfo?.source_institution || 'ICAR Research Institute',
+        explanationKn: result.explanation_kn || undefined,
+        approvedActions: result.approved_actions || undefined,
+        sourceInstitution: result.knowledge_base_reference || diseaseInfo?.source_institution || 'ICAR Research Institute',
         evidenceFarmsCount: 1,
         predictions: result.predictions,
       };

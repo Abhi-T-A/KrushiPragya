@@ -62,8 +62,13 @@ def get_nearby_mandis(
     ref_lat = latitude if latitude is not None else 12.9716
     ref_lon = longitude if longitude is not None else 77.5946
 
+    logger.info(
+        f"[MARKET] nearby request | crop_id={crop_id} | latitude={ref_lat} | "
+        f"longitude={ref_lon} | radius={radius_km} | sort={sort}"
+    )
+
     try:
-        return search_service.find_nearby_mandis(
+        response = search_service.find_nearby_mandis(
             db=db,
             crop_id=crop_id,
             latitude=ref_lat,
@@ -71,11 +76,22 @@ def get_nearby_mandis(
             radius_km=radius_km,
             sort_by=sort,
         )
+        prices_found = sum(1 for m in response.markets if m.latest_price is not None)
+        logger.info(
+            f"[MARKET] markets found={len(response.markets)} | prices found={prices_found} | "
+            f"source status={response.source_status} | sync status={response.sync_status} | "
+            f"response generated successfully"
+        )
+        return response
     except ValueError as exc:
+        logger.warning(f"[MARKET] Invalid query parameter: {exc}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+    except Exception as exc:
+        logger.exception(f"[MARKET] Unexpected error in get_nearby_mandis: {exc}")
+        raise
 
 
 @router.get(

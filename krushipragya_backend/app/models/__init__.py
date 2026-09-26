@@ -14,6 +14,7 @@ from app.models.marketplace import ProduceListing, BuyerOffer
 from app.models.government import (
     GovernmentScheme,
     SchemeApplication,
+    PaymentTransaction,
     SchemeSource,
     SchemeCrawlRun,
     SchemeSourceDocument,
@@ -42,6 +43,7 @@ __all__ = [
     "BuyerOffer",
     "GovernmentScheme",
     "SchemeApplication",
+    "PaymentTransaction",
     "SchemeSource",
     "SchemeCrawlRun",
     "SchemeSourceDocument",

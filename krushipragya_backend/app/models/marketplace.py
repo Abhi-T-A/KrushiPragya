@@ -195,3 +195,125 @@ class BuyerOffer(Base):
 
     def __repr__(self) -> str:
         return f"<BuyerOffer(id={self.id}, listing_id={self.listing_id}, buyer_id={self.buyer_id}, status='{self.status}')>"
+
+
+class MarketplaceTransaction(Base):
+    """Payment transaction and order tracking between buyer and farmer."""
+
+    __tablename__ = "marketplace_transactions"
+
+    __table_args__ = (
+        Index("ix_marketplace_transactions_buyer", "buyer_id"),
+        Index("ix_marketplace_transactions_farmer", "farmer_id"),
+        Index("ix_marketplace_transactions_status", "payment_status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+        doc="Unique transaction ID",
+    )
+    offer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("buyer_offers.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        doc="Foreign key to the accepted buyer offer",
+    )
+    listing_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("produce_listings.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        doc="Foreign key to the produce listing",
+    )
+    buyer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("user_profiles.id", ondelete="RESTRICT"),
+        nullable=False,
+        doc="Foreign key to the buyer",
+    )
+    farmer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("user_profiles.id", ondelete="RESTRICT"),
+        nullable=False,
+        doc="Foreign key to the farmer seller",
+    )
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        doc="Total transaction amount in INR (₹)",
+    )
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        default="INR",
+        server_default="INR",
+        nullable=False,
+        doc="Transaction currency (default INR)",
+    )
+    idempotency_key: Mapped[Optional[str]] = mapped_column(
+        String(120),
+        unique=True,
+        index=True,
+        nullable=True,
+        doc="Unique idempotency token to prevent double-charging",
+    )
+    gateway_order_id: Mapped[Optional[str]] = mapped_column(
+        String(120),
+        nullable=True,
+        doc="Server-generated Razorpay order ID",
+    )
+    gateway_payment_id: Mapped[Optional[str]] = mapped_column(
+        String(120),
+        nullable=True,
+        doc="Razorpay payment ID returned after checkout",
+    )
+    gateway_signature: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="HMAC SHA-256 signature verified server-side",
+    )
+    payment_status: Mapped[str] = mapped_column(
+        String(50),
+        default="PAYMENT_PENDING",
+        server_default="PAYMENT_PENDING",
+        nullable=False,
+        doc="PAYMENT_PENDING, PAYMENT_PROCESSING, PAYMENT_SUCCESS, PAYMENT_FAILED, PAYMENT_REFUNDED, PAYMENT_CANCELLED",
+    )
+    order_status: Mapped[str] = mapped_column(
+        String(50),
+        default="PENDING_PAYMENT",
+        server_default="PENDING_PAYMENT",
+        nullable=False,
+        doc="OFFER_ACCEPTED, PENDING_PAYMENT, PAID, COMPLETED, CANCELLED",
+    )
+    failure_reason: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Human-readable reason for payment failure",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        doc="Transaction creation timestamp",
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+        doc="Transaction last updated timestamp",
+    )
+
+    # Relationships
+    offer: Mapped["BuyerOffer"] = relationship("BuyerOffer")
+    listing: Mapped["ProduceListing"] = relationship("ProduceListing")
+    buyer: Mapped["UserProfile"] = relationship("UserProfile", foreign_keys=[buyer_id])
+    farmer: Mapped["UserProfile"] = relationship("UserProfile", foreign_keys=[farmer_id])
+
+    def __repr__(self) -> str:
+        return f"<MarketplaceTransaction(id={self.id}, amount={self.amount}, status='{self.payment_status}')>"
+

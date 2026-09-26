@@ -15,6 +15,12 @@ const resolveBaseServerUrl = () => {
     if (host && host !== 'localhost' && host !== '127.0.0.1') {
       return `http://${host}:8000`;
     }
+    if (host === 'localhost' || host === '127.0.0.1') {
+      if (Platform.OS === 'android') {
+        return 'http://10.0.2.2:8000';
+      }
+      return 'http://localhost:8000';
+    }
   }
   return 'http://10.111.92.90:8000';
 };
@@ -232,12 +238,11 @@ export const submitCropReport = async (reportData: Partial<CropReport>): Promise
   }
 };
 
-import { predictCropDiseaseDirect } from './cropHealthApi';
-
 export const diseaseService = {
   predict: async (crop: string, imageUri?: string) => {
     if (imageUri) {
       try {
+        const { predictCropDiseaseDirect } = await import('./cropHealthApi');
         const result = await predictCropDiseaseDirect(crop, imageUri);
         const info = result.disease_info;
         return {

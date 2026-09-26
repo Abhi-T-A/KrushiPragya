@@ -1,7 +1,7 @@
 """Pydantic schemas for the KrushiPragya Market Domain."""
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,25 +14,25 @@ class LatestPriceInfo(BaseModel):
     """Latest reported APMC market price quote."""
     model_config = ConfigDict(populate_by_name=True)
 
-    min_price: Decimal = Field(..., alias="min", serialization_alias="min", description="Reported minimum price in INR")
-    max_price: Decimal = Field(..., alias="max", serialization_alias="max", description="Reported maximum price in INR")
-    modal: Decimal = Field(..., description="Reported modal price in INR")
+    min_price: Optional[Decimal] = Field(default=None, alias="min", serialization_alias="min", description="Reported minimum price in INR")
+    max_price: Optional[Decimal] = Field(default=None, alias="max", serialization_alias="max", description="Reported maximum price in INR")
+    modal: Optional[Decimal] = Field(default=None, description="Reported modal price in INR")
     unit: str = Field(default="quintal", description="Unit of pricing (e.g. quintal)")
-    price_date: date = Field(..., alias="date", serialization_alias="date", description="Official price quotation date")
+    price_date: Optional[date] = Field(default=None, alias="date", serialization_alias="date", description="Official price quotation date")
     arrival_quantity: Optional[Decimal] = Field(default=None, description="Arrival quantity")
     is_seeded: bool = Field(default=True, description="True if quote is from demo benchmark seed; False if live government sync")
     data_mode: str = Field(default="DEMO_SEEDED", description="Data provenance mode: LIVE or DEMO_SEEDED")
 
     @property
-    def min(self) -> Decimal:
+    def min(self) -> Optional[Decimal]:
         return self.min_price
 
     @property
-    def max(self) -> Decimal:
+    def max(self) -> Optional[Decimal]:
         return self.max_price
 
     @property
-    def date(self) -> date:
+    def date(self) -> Optional[date]:
         return self.price_date
 
 
@@ -70,6 +70,8 @@ class NearbyMandisListResponse(BaseModel):
     radius_km: float
     count: int
     markets: List[NearbyMarketResponse]
+    source_status: str = Field(default="DEMO", description="Data source provenance status: LIVE or DEMO")
+    sync_status: str = Field(default="UNAVAILABLE", description="Live sync status: SYNCED, UNAVAILABLE, or PENDING")
 
 
 # ==============================================================================
@@ -136,6 +138,10 @@ class PriceIntelligenceResponse(BaseModel):
     is_seeded: bool = Field(default=True, description="True if based on demo benchmark seed; False if live government sync")
     data_mode: str = Field(default="DEMO_SEEDED", description="Data provenance mode: LIVE or DEMO_SEEDED")
     source_name: Optional[str] = Field(default="Demo Benchmark Mandi Rates", description="Data source name")
+    latest_price: Optional[Decimal] = Field(default=None, description="Alias for current modal price")
+    trend_15d: Optional[str] = Field(default=None, description="Alias for trend")
+    period_min_price: Optional[Decimal] = Field(default=None, description="Alias for lowest_15_days")
+    period_max_price: Optional[Decimal] = Field(default=None, description="Alias for highest_15_days")
 
 
 class MarketDetailResponse(BaseModel):
@@ -254,12 +260,88 @@ class BuyerOfferWithContextResponse(BaseModel):
     buyer_name: Optional[str] = None
     farmer_expected_price: Decimal
     reference_mandi: Optional[ReferenceMandiPrice] = None
+    contact_phone: Optional[str] = Field(None, description="Authorized contact phone, revealed strictly after offer acceptance")
+    contact_name: Optional[str] = Field(None, description="Authorized contact name, revealed strictly after offer acceptance")
+    contact_role: Optional[str] = Field(None, description="Authorized contact role ('BUYER' or 'FARMER')")
 
 
 class OfferStatusAction(BaseModel):
     """Action payload to accept, reject, or negotiate an offer."""
     action: str = Field(..., pattern="^(ACCEPT|REJECT)$", description="Action to perform: ACCEPT or REJECT")
     notes: Optional[str] = Field(None, max_length=500)
+
+
+# ==============================================================================
+# 5b. Payment & Transaction Schemas
+# ==============================================================================
+
+class PaymentOrderCreateRequest(BaseModel):
+    """Payload to create a server-side payment order for an accepted offer."""
+    offer_id: uuid.UUID = Field(..., description="ID of the accepted buyer offer")
+    idempotency_key: Optional[str] = Field(None, max_length=120, description="Client idempotency token to prevent double-charging")
+
+
+class PaymentOrderResponse(BaseModel):
+    """Server-side payment order response."""
+    model_config = ConfigDict(from_attributes=True)
+
+    transaction_id: uuid.UUID
+    offer_id: uuid.UUID
+    listing_id: uuid.UUID
+    amount: Decimal
+    currency: str = "INR"
+    provider: str = "payu"
+    gateway_order_id: Optional[str] = None
+    gateway_key_id: Optional[str] = None
+    gateway_configured: bool = True
+    payment_status: str
+    order_status: str
+    checkout_data: Optional[Dict[str, Any]] = None
+    message_kn: str
+    message_en: str
+
+
+class PaymentVerifyRequest(BaseModel):
+    """Client payment result submitted for authoritative server-side signature/hash verification."""
+    transaction_id: uuid.UUID
+    # Razorpay parameters (optional)
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    razorpay_signature: Optional[str] = None
+    # PayU parameters (optional)
+    payu_txnid: Optional[str] = None
+    payu_payment_id: Optional[str] = None
+    payu_status: Optional[str] = None
+    payu_hash: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+
+
+class TransactionResponse(BaseModel):
+    """Detailed transaction response."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    offer_id: uuid.UUID
+    listing_id: uuid.UUID
+    crop_name: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    unit: Optional[str] = None
+    unit_price: Optional[Decimal] = None
+    buyer_id: uuid.UUID
+    buyer_name: Optional[str] = None
+    buyer_phone: Optional[str] = None
+    farmer_id: uuid.UUID
+    farmer_name: Optional[str] = None
+    farmer_phone: Optional[str] = None
+    amount: Decimal
+    currency: str = "INR"
+    gateway_order_id: Optional[str] = None
+    gateway_payment_id: Optional[str] = None
+    payment_status: str
+    order_status: str
+    failure_reason: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
 
 
 # ==============================================================================

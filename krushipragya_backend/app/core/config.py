@@ -117,6 +117,36 @@ class Settings(BaseSettings):
         description="Timeout in seconds for LLM inference requests",
     )
 
+    # Payment Gateway Configuration (Provider-agnostic abstraction: PayU / Razorpay)
+    PAYMENT_PROVIDER: str = Field(
+        default="payu",
+        description="Active payment provider implementation ('payu' or 'razorpay')",
+    )
+    PAYU_MERCHANT_KEY: Optional[str] = Field(
+        default=None,
+        description="PayU Merchant Key (Public identifier)",
+    )
+    PAYU_MERCHANT_SALT: Optional[str] = Field(
+        default=None,
+        description="PayU Merchant Salt (Server-side secret, NEVER exposed to client)",
+    )
+    PAYU_ENVIRONMENT: str = Field(
+        default="test",
+        description="PayU environment ('test' or 'production')",
+    )
+    RAZORPAY_KEY_ID: Optional[str] = Field(
+        default=None,
+        description="Razorpay Key ID (Available but inactive when PAYMENT_PROVIDER=payu)",
+    )
+    RAZORPAY_KEY_SECRET: Optional[str] = Field(
+        default=None,
+        description="Razorpay Key Secret (Server-side only)",
+    )
+    RAZORPAY_WEBHOOK_SECRET: Optional[str] = Field(
+        default=None,
+        description="Razorpay Webhook Secret",
+    )
+
     # Legacy compatibility aliases for Ollama
     OLLAMA_BASE_URL: str = Field(
         default="http://localhost:11434",

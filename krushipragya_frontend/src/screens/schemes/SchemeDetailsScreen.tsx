@@ -19,9 +19,13 @@ import {
   ShieldCheck,
   Calendar,
   Globe,
+  Receipt,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
-import { SchemeDetail } from '../../types/schemes';
+import { SchemeDetail, SchemeApplication } from '../../types/schemes';
 import {
   fetchSchemeDetail,
   saveScheme,
@@ -33,6 +37,7 @@ import { SchemeStatusBadge } from '../../components/schemes/SchemeStatusBadge';
 import { SchemeBookmarkButton } from '../../components/schemes/SchemeBookmarkButton';
 import { SchemeLoadingState } from '../../components/schemes/SchemeLoadingState';
 import { SchemeErrorState } from '../../components/schemes/SchemeErrorState';
+import { SchemePaymentModal } from '../../components/schemes/SchemePaymentModal';
 
 export const SchemeDetailsScreen: React.FC<{ route: any; navigation: any }> = ({
   route,
@@ -44,6 +49,7 @@ export const SchemeDetailsScreen: React.FC<{ route: any; navigation: any }> = ({
   const [scheme, setScheme] = useState<SchemeDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [paymentModalVisible, setPaymentModalVisible] = useState<boolean>(false);
 
   const loadDetail = useCallback(async () => {
     if (!schemeId) {
@@ -318,30 +324,121 @@ export const SchemeDetailsScreen: React.FC<{ route: any; navigation: any }> = ({
           </View>
         </View>
 
-        <View style={{ height: 90 }} />
+        {/* 7. 💳 ಪಾವತಿ & ಶುಲ್ಕ ವಿವರ (Fee & Payment Transparency) */}
+        <View style={styles.feeCard}>
+          <View style={styles.feeCardHeader}>
+            <Receipt size={18} color="#0F6E56" />
+            <Text style={styles.feeCardTitle}>ಪಾವತಿ & ಶುಲ್ಕ ವಿವರ</Text>
+          </View>
+          <Text style={styles.feeCardSubtitle}>Payment Breakdown & Transparency</Text>
+
+          {scheme.fee_info?.fee_type === 'UNKNOWN' ? (
+            <View style={styles.feeUnknownBox}>
+              <AlertCircle size={18} color="#D97706" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.feeUnknownTitle}>ಶುಲ್ಕದ ವಿವರ ಪರಿಶೀಲನೆಯಲ್ಲಿದೆ</Text>
+                <Text style={styles.feeUnknownText}>
+                  ಈ ಯೋಜನೆಯ ನಿಖರವಾದ ಶುಲ್ಕ ಮಾಹಿತಿ ಪರಿಶೀಲನೆಯಾಗುವವರೆಗೆ ಆನ್‌ಲೈನ್ ಪಾವತಿ ಲಭ್ಯವಿರುವುದಿಲ್ಲ.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.feeTableBox}>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>ಸರ್ಕಾರದ ಅಧಿಕೃತ ಅರ್ಜಿ ಶುಲ್ಕ:</Text>
+                <Text style={styles.feeValue}>
+                  ₹{scheme.fee_info?.official_fee ?? 0}
+                  {scheme.fee_info?.fee_type === 'GOVERNMENT_BORNE' && ' (ಸರ್ಕಾರ ಭರಿಸಿದೆ)'}
+                </Text>
+              </View>
+
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>KrushiPragya ಸೇವಾ ಶುಲ್ಕ:</Text>
+                <Text style={styles.feeValue}>
+                  ₹{scheme.fee_info?.krushipragya_service_fee ?? 0}
+                </Text>
+              </View>
+
+              <View style={styles.feeDivider} />
+
+              <View style={styles.feeRowTotal}>
+                <Text style={styles.feeTotalLabel}>ಒಟ್ಟು ಪಾವತಿ (Total):</Text>
+                <Text style={styles.feeTotalValue}>
+                  ₹{scheme.fee_info?.total_payable ?? scheme.fee_info?.total_amount ?? 0}
+                </Text>
+              </View>
+
+              <Text style={styles.feeTransparencyNotice}>
+                ℹ️ ಪಾರದರ್ಶಕತೆಗಾಗಿ ಶುಲ್ಕಗಳನ್ನು ಪ್ರತ್ಯೇಕವಾಗಿ ತೋರಿಸಲಾಗಿದೆ.
+              </Text>
+
+              {scheme.fee_info?.fee_type === 'FREE' && (
+                <View style={styles.freeBadgeBox}>
+                  <CheckCircle2 size={15} color="#0F6E56" />
+                  <Text style={styles.freeBadgeText}>ಈ ಯೋಜನೆಗೆ ಯಾವುದೇ ಪಾವತಿ ಅಗತ್ಯವಿಲ್ಲ.</Text>
+                </View>
+              )}
+
+              {scheme.fee_info?.fee_source && (
+                <Text style={styles.feeSourceNote}>
+                  ಶುಲ್ಕ ಮೂಲ: {scheme.fee_info.fee_source}
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={{ height: 110 }} />
       </ScrollView>
 
-      {/* Bottom Sticky CTA: ಅಧಿಕೃತ ವೆಬ್ಸೈಟ್ ತೆರೆಯಿರಿ */}
+      {/* Bottom Sticky CTA */}
       <View style={styles.stickyBottomBar}>
         <TouchableOpacity
-          activeOpacity={officialUrlAvailable ? 0.85 : 1}
-          onPress={handleOpenApplicationUrl}
-          disabled={!officialUrlAvailable}
+          activeOpacity={0.88}
+          onPress={() => setPaymentModalVisible(true)}
+          disabled={scheme.fee_info?.fee_type === 'UNKNOWN'}
           style={[
             styles.ctaButton,
-            !officialUrlAvailable && styles.ctaButtonDisabled,
+            scheme.fee_info?.fee_type === 'UNKNOWN' && styles.ctaButtonDisabled,
           ]}
           accessibilityRole="button"
-          accessibilityLabel="ಅಧಿಕೃತ ವೆಬ್ಸೈಟ್ ತೆರೆಯಿರಿ"
+          accessibilityLabel="ಕೃಷಿಪ್ರಜ್ಞಾ ಮೂಲಕ ಅರ್ಜಿ ಸಲ್ಲಿಸಿ"
         >
+          <Sparkles size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.ctaButtonText}>
-            {officialUrlAvailable ? 'ಅಧಿಕೃತ ವೆಬ್ಸೈಟ್ ತೆರೆಯಿರಿ' : 'ವೆಬ್ಸೈಟ್ ಲಭ್ಯವಿಲ್ಲ'}
+            {scheme.fee_info?.fee_type === 'UNKNOWN'
+              ? 'ಶುಲ್ಕ ಪರಿಶೀಲನೆ ಬಾಕಿ ಇದೆ'
+              : 'ಕೃಷಿಪ್ರಜ್ಞಾ ಮೂಲಕ ಅರ್ಜಿ ಸಲ್ಲಿಸಿ'}
           </Text>
-          {officialUrlAvailable && (
-            <ExternalLink size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
-          )}
         </TouchableOpacity>
+
+        {officialUrlAvailable && (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleOpenApplicationUrl}
+            style={styles.portalLinkButton}
+            accessibilityRole="button"
+            accessibilityLabel="ಅಧಿಕೃತ ವೆಬ್ಸೈಟ್ ತೆರೆಯಿರಿ"
+          >
+            <Text style={styles.portalLinkText}>ಅಥವಾ ಅಧಿಕೃತ ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ನೀವೇ ಸಲ್ಲಿಸಿ</Text>
+            <ExternalLink size={13} color="#0F6E56" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* Scheme Application & Payment Modal */}
+      <SchemePaymentModal
+        visible={paymentModalVisible}
+        scheme={scheme}
+        user={user}
+        onClose={() => setPaymentModalVisible(false)}
+        onApplicationCompleted={(app: SchemeApplication) => {
+          Alert.alert(
+            'ಅರ್ಜಿ ಸಲ್ಲಿಸಲಾಗಿದೆ',
+            `ನಿಮ್ಮ ಅರ್ಜಿ ಐಡಿ #${app.id.slice(0, 8)} ಯಶಸ್ವಿಯಾಗಿ ನೋಂದಣಿಯಾಗಿದೆ.`
+          );
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -505,7 +602,8 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
     shadowColor: '#000',
@@ -513,11 +611,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 8,
+    alignItems: 'center',
   },
   ctaButton: {
     backgroundColor: '#0F6E56',
     borderRadius: 12,
     height: 48,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -535,5 +635,129 @@ const styles = StyleSheet.create({
     fontSize: 15.5,
     fontWeight: '600',
     letterSpacing: 0.2,
+  },
+  portalLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    paddingVertical: 2,
+  },
+  portalLinkText: {
+    fontSize: 12.5,
+    color: '#0F6E56',
+    fontWeight: '600',
+  },
+  feeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: '#CDEBD7',
+  },
+  feeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  feeCardTitle: {
+    fontSize: 15.5,
+    fontWeight: '600',
+    color: '#0F6E56',
+  },
+  feeCardSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  feeUnknownBox: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  feeUnknownTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  feeUnknownText: {
+    fontSize: 12,
+    color: '#B45309',
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  feeTableBox: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feeLabel: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  feeValue: {
+    fontSize: 13.5,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  feeDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 4,
+  },
+  feeRowTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feeTotalLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  feeTotalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F6E56',
+  },
+  feeTransparencyNotice: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  freeBadgeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EAF7EE',
+    padding: 8,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 4,
+  },
+  freeBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0F6E56',
+  },
+  feeSourceNote: {
+    fontSize: 10.5,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
 });

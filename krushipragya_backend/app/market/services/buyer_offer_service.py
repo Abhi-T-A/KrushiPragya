@@ -96,6 +96,15 @@ class BuyerOfferService:
         for o in offers:
             buyer = db.get(UserProfile, o.buyer_id)
             buyer_name = buyer.full_name if buyer else None
+            # Privacy rule: Reveal contact phone only after offer acceptance
+            contact_phone = None
+            contact_name = None
+            contact_role = None
+            if o.status == "ACCEPTED" and buyer:
+                contact_phone = buyer.phone
+                contact_name = buyer.full_name
+                contact_role = "BUYER"
+
             results.append(
                 BuyerOfferWithContextResponse(
                     offer=BuyerOfferResponse.model_validate(o),
@@ -103,6 +112,9 @@ class BuyerOfferService:
                     buyer_name=buyer_name,
                     farmer_expected_price=listing.expected_price,
                     reference_mandi=ref_mandi,
+                    contact_phone=contact_phone,
+                    contact_name=contact_name,
+                    contact_role=contact_role,
                 )
             )
 
@@ -128,6 +140,18 @@ class BuyerOfferService:
                 continue
             detail = self.listing_service.get_listing_detail(db, listing.id)
             ref_mandi = detail.reference_mandi if detail else None
+
+            # Privacy rule: Reveal farmer contact only after offer acceptance
+            contact_phone = None
+            contact_name = None
+            contact_role = None
+            if o.status == "ACCEPTED":
+                farmer = db.get(UserProfile, listing.farmer_id)
+                if farmer:
+                    contact_phone = farmer.phone
+                    contact_name = farmer.full_name
+                    contact_role = "FARMER"
+
             results.append(
                 BuyerOfferWithContextResponse(
                     offer=BuyerOfferResponse.model_validate(o),
@@ -135,6 +159,9 @@ class BuyerOfferService:
                     buyer_name=None,
                     farmer_expected_price=listing.expected_price,
                     reference_mandi=ref_mandi,
+                    contact_phone=contact_phone,
+                    contact_name=contact_name,
+                    contact_role=contact_role,
                 )
             )
 

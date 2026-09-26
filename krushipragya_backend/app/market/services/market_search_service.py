@@ -1,4 +1,6 @@
 """Market Search Service: Haversine distance discovery for nearby APMC Mandis."""
+from decimal import Decimal
+import logging
 import math
 from typing import List, Optional, Tuple
 import uuid
@@ -15,6 +17,8 @@ from app.market.services.price_service import PriceService
 from app.models.crop import Crop
 from app.models.user_profile import UserProfile
 from app.models.village import Village
+
+logger = logging.getLogger(__name__)
 
 
 def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -154,7 +158,7 @@ class MarketSearchService:
             # Highest modal price first, mandis with no price at the end
             results.sort(
                 key=lambda x: (
-                    -(x.latest_price.modal if x.latest_price else Decimal("-1")),
+                    -(Decimal(str(x.latest_price.modal)) if (x.latest_price and x.latest_price.modal is not None) else Decimal("-1")),
                     x.distance_km,
                 )
             )
@@ -168,4 +172,6 @@ class MarketSearchService:
             radius_km=radius_km,
             count=len(results),
             markets=results,
+            source_status="DEMO",
+            sync_status="UNAVAILABLE",
         )

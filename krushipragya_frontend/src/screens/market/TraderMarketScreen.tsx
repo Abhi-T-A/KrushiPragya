@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,86 +6,172 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Header } from '../../components/common/Header';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 import { Colors, Spacing, BorderRadius } from '../../constants/theme';
 import {
+  ProduceListingItem,
+  fetchProduceListings,
+  submitBuyerOffer,
+} from '../../services/marketApi';
+import { BuyerOfferModal } from '../../components/market/BuyerOfferModal';
+import {
   Store,
-  TrendingUp,
-  MapPin,
+  Tag,
   CheckCircle2,
   ShieldCheck,
+  MapPin,
+  RefreshCw,
+  Inbox,
 } from 'lucide-react-native';
-
-const INITIAL_LISTINGS = [
-  { id: 'l1', farmer: 'Mallikarjuna G.', crop: 'Paddy Jyothi', qty: '40 Qtl', price: '₹2,400/Qtl', village: 'Ujire', certified: true, status: 'OPEN' },
-  { id: 'l2', farmer: 'Anantha P.', crop: 'Arecanut Rashi', qty: '15 Qtl', price: '₹48,500/Qtl', village: 'Thirthahalli', certified: true, status: 'OPEN' },
-];
 
 export const TraderMarketScreen: React.FC = () => {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const isKn = language === 'kn';
-  const [listings, setListings] = useState(INITIAL_LISTINGS);
 
-  const handleBid = (id: string, farmer: string, crop: string) => {
-    setListings(prev => prev.map(l => l.id === id ? { ...l, status: 'BID_PLACED' } : l));
-    Alert.alert(
-      isKn ? 'ಖರೀದಿ ಬಿಡ್ ಕಳುಹಿಸಲಾಗಿದೆ 📦' : 'Procurement Bid Placed 📦',
-      isKn ? `${farmer} ಅವರ ${crop} ಖರೀದಿಗೆ ನಿಮ್ಮ ಬಿಡ್ ತಲುಪಿದೆ.` : `Your purchase offer sent to ${farmer}.`
-    );
+  const [listings, setListings] = useState<ProduceListingItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedListing, setSelectedListing] = useState<ProduceListingItem | null>(null);
+  const [offerModalVisible, setOfferModalVisible] = useState(false);
+
+  const buyerId = user?.id || '11111111-1111-4111-8111-111111111114';
+
+  useEffect(() => {
+    loadListings();
+  }, []);
+
+  const loadListings = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchProduceListings({ status: 'LISTED' });
+      setListings(data);
+    } catch (err) {
+      console.warn('Failed to load listings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadListings();
+    setRefreshing(false);
   };
 
   return (
     <View style={styles.container}>
-      <Header />
+      <Header title={isKn ? 'ವರ್ತಕರ ಮಾರುಕಟ್ಟೆ' : 'Trader Market'} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D97706']} />}
+      >
         {/* Banner */}
         <View style={styles.banner}>
-          <Store size={22} color="#FFFFFF" />
+          <Store size={24} color="#FFFFFF" />
           <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>{isKn ? 'ರಾಜೇಶ್ ಸೇಠ್ (APMC ವರ್ತಕ)' : 'Rajesh Seth (APMC Merchant)'}</Text>
-            <Text style={styles.bannerSub}>{isKn ? 'ಮಂಗಳೂರು APMC • ನೇರ ಖರೀದಿ' : 'Mangalore APMC Trade Hub'}</Text>
+            <Text style={styles.bannerTitle}>
+              {user?.name || (isKn ? 'ರಾಜೇಶ್ ಸೇಠ್ (APMC ವರ್ತಕ)' : 'Rajesh Seth (APMC Merchant)')}
+            </Text>
+            <Text style={styles.bannerSub}>
+              {isKn ? 'ಎಪಿಎಂಸಿ ದೃಢೀಕೃತ ವ್ಯಾಪಾರ ವೇದಿಕೆ' : 'APMC Verified Trade Network'}
+            </Text>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>{isKn ? 'ದೃಢೀಕೃತ ಬೆಳೆ ಖರೀದಿ ಲಾಟ್‌ಗಳು' : 'Verified Disease-Free Lots'}</Text>
+        <Text style={styles.sectionTitle}>
+          {isKn ? 'ರೈತರ ಮಾರಾಟ ಲಾಟ್‌ಗಳು' : 'Farmer Produce Lots Available'}
+        </Text>
 
-        <View style={styles.list}>
-          {listings.map((item) => (
-            <View key={item.id} style={[styles.card, item.status === 'BID_PLACED' && styles.cardBid]}>
-              <View style={styles.cardTop}>
-                <View>
-                  <Text style={styles.cropText}>{item.crop} ({item.qty})</Text>
-                  <Text style={styles.farmerText}>{item.farmer} • {item.village}</Text>
+        {loading && !refreshing ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator size="large" color="#D97706" />
+            <Text style={styles.loadingText}>ದಾಸ್ತಾನು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...</Text>
+          </View>
+        ) : listings.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Inbox size={36} color="#9CA3AF" />
+            <Text style={styles.emptyTitle}>
+              {isKn ? 'ಈಗ ಯಾವುದೇ ರೈತರ ಬೆಳೆ ಲಭ್ಯವಿಲ್ಲ' : 'No produce lots available currently'}
+            </Text>
+            <Text style={styles.emptySub}>
+              {isKn ? 'ರೈತರು ಹೊಸ ಬೆಳೆಗಳನ್ನು ಪಟ್ಟಿ ಮಾಡಿದಾಗ ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ.' : 'When farmers list crops, they appear here.'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {listings.map((item) => {
+              const { listing, crop_name, reference_mandi } = item;
+              return (
+                <View key={listing.id} style={styles.card}>
+                  <View style={styles.cardTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cropText}>
+                        {crop_name} ({listing.quantity} {listing.unit})
+                      </Text>
+                      <Text style={styles.farmerText}>
+                        {item.farmer_name || 'ರೈತರು'} • {listing.location}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.priceText}>
+                        ₹{Number(listing.expected_price).toLocaleString('en-IN')}
+                      </Text>
+                      <Text style={styles.priceUnitText}>/ {listing.unit}</Text>
+                    </View>
+                  </View>
+
+                  {/* Quality & APMC Reference */}
+                  <View style={styles.metaRow}>
+                    <View style={styles.certBadge}>
+                      <ShieldCheck size={12} color="#166534" />
+                      <Text style={styles.certText}>
+                        ಗುಣಮಟ್ಟ: {listing.quality_grade}
+                      </Text>
+                    </View>
+
+                    {reference_mandi && (
+                      <Text style={styles.refPriceText}>
+                        ಎಪಿಎಂಸಿ ದರ: ₹{Math.round(parseFloat(reference_mandi.modal_price)).toLocaleString('en-IN')}
+                      </Text>
+                    )}
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.bidBtn}
+                    onPress={() => {
+                      setSelectedListing(item);
+                      setOfferModalVisible(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Tag size={14} color="#FFFFFF" />
+                    <Text style={styles.bidBtnText}>
+                      {isKn ? 'ಖರೀದಿ ಆಫರ್ ಸಲ್ಲಿಸಿ' : 'Place Purchase Offer'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.priceText}>{item.price}</Text>
-              </View>
-
-              <View style={styles.certBadge}>
-                <ShieldCheck size={12} color="#166534" />
-                <Text style={styles.certText}>{isKn ? 'ICAR ರೋಗ-ಮುಕ್ತ ಪ್ರಮಾಣಪತ್ರ' : 'KVK Disease-Free Certified'}</Text>
-              </View>
-
-              {item.status === 'OPEN' ? (
-                <TouchableOpacity
-                  style={styles.bidBtn}
-                  onPress={() => handleBid(item.id, item.farmer, item.crop)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.bidBtnText}>{isKn ? 'ಖರೀದಿ ಬಿಡ್ ಸಲ್ಲಿಸಿ' : 'Place Purchase Bid'}</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.bidSuccess}>
-                  <CheckCircle2 size={13} color="#166534" />
-                  <Text style={styles.bidSuccessText}>{isKn ? 'ಬಿಡ್ ಸಲ್ಲಿಸಲಾಗಿದೆ' : 'Bid Placed & Locked'}</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
+
+      {/* Buyer Offer Modal */}
+      <BuyerOfferModal
+        visible={offerModalVisible}
+        listingItem={selectedListing}
+        buyerId={buyerId}
+        onClose={() => setOfferModalVisible(false)}
+        onSuccess={loadListings}
+      />
     </View>
   );
 };
@@ -99,51 +185,62 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#D97706',
     borderRadius: BorderRadius.md,
-    padding: 12,
+    padding: 14,
   },
-  bannerTitle: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
-  bannerSub: { fontSize: 11, color: '#FEF3C7' },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+  bannerTitle: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  bannerSub: { fontSize: 11, color: '#FEF3C7', marginTop: 2 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
+  centerBox: { padding: 40, alignItems: 'center', gap: 10 },
+  loadingText: { fontSize: 13, color: '#6B7280' },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 30,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyTitle: { fontSize: 14, fontWeight: '700', color: '#374151' },
+  emptySub: { fontSize: 12, color: '#9CA3AF', textAlign: 'center' },
   list: { gap: 10 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.md,
-    padding: 12,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 8,
+    gap: 10,
   },
-  cardBid: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cropText: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
-  farmerText: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
-  priceText: { fontSize: 13, fontWeight: '800', color: '#D97706' },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cropText: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+  farmerText: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  priceText: { fontSize: 16, fontWeight: '800', color: '#D97706' },
+  priceUnitText: { fontSize: 10, color: '#6B7280' },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   certBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#DCFCE7',
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 8,
     borderRadius: BorderRadius.sm,
-    alignSelf: 'flex-start',
   },
-  certText: { fontSize: 10, fontWeight: '700', color: '#166534' },
+  certText: { fontSize: 11, fontWeight: '700', color: '#166534' },
+  refPriceText: { fontSize: 11, color: '#6B7280' },
   bidBtn: {
-    backgroundColor: '#D97706',
-    paddingVertical: 9,
-    borderRadius: BorderRadius.sm,
-    alignItems: 'center',
-  },
-  bidBtnText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
-  bidSuccess: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    backgroundColor: '#DCFCE7',
-    paddingVertical: 6,
+    gap: 6,
+    backgroundColor: '#D97706',
+    paddingVertical: 10,
     borderRadius: BorderRadius.sm,
   },
-  bidSuccessText: { fontSize: 11, fontWeight: '700', color: '#166534' },
+  bidBtnText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
 });

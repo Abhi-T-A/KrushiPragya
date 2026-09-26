@@ -18,7 +18,9 @@ from app.api.v1.farmer_advisory import router as farmer_advisory_router
 from app.market.routers.market_public import router as market_public_router
 from app.market.routers.farmer_market import router as farmer_market_router
 from app.market.routers.buyer_market import router as buyer_market_router
+from app.market.routers.market_payment import router as market_payment_router
 from app.schemes.routers.schemes import router as schemes_router
+from app.schemes.routers.scheme_payment import router as scheme_payment_router
 from app.schemes.routers.admin import router as admin_schemes_router
 from app.api.v1.verification import router as verification_router
 from app.core.config import settings
@@ -107,7 +109,9 @@ app.include_router(crop_report_diagnosis_router, prefix="/api/v1")
 app.include_router(farmer_advisory_router, prefix="/api/v1")
 app.include_router(farmer_market_router, prefix="/api/v1")
 app.include_router(buyer_market_router, prefix="/api/v1")
+app.include_router(market_payment_router, prefix="/api/v1")
 app.include_router(market_public_router, prefix="/api/v1")
+app.include_router(scheme_payment_router, prefix="/api/v1")
 app.include_router(schemes_router, prefix="/api/v1")
 app.include_router(admin_schemes_router, prefix="/api/v1")
 app.include_router(verification_router, prefix="/api/v1")

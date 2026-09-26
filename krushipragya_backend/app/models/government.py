@@ -1,9 +1,10 @@
 """GovernmentScheme and SchemeApplication models for KrushiPragya."""
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional, TYPE_CHECKING
 import uuid
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -188,6 +189,47 @@ class GovernmentScheme(Base):
         server_default="ACTIVE",
         nullable=False,
         doc="Status: DRAFT, ACTIVE, EXPIRED, ARCHIVED",
+    )
+    official_fee: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        default=None,
+        doc="Official government application or processing fee if any",
+    )
+    krushipragya_service_fee: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        default=None,
+        doc="KrushiPragya facilitation or assistance service fee",
+    )
+    payment_required: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+        doc="Whether online payment is required for this scheme",
+    )
+    fee_type: Mapped[str] = mapped_column(
+        String(50),
+        default="UNKNOWN",
+        server_default="UNKNOWN",
+        nullable=False,
+        doc="Fee type: FREE, OFFICIAL_FEE, SERVICE_FEE, OFFICIAL_PLUS_SERVICE_FEE, GOVERNMENT_BORNE, UNKNOWN",
+    )
+    fee_description: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Human-readable explanation of fees and purpose",
+    )
+    fee_source: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Source of fee data (e.g. Official Gazette, Portal notification)",
+    )
+    fee_last_verified: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Timestamp when fee structure was verified from official portal",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -462,11 +504,29 @@ class SchemeApplication(Base):
         nullable=True,
         doc="Official review notes from reviewing Government Officer",
     )
-    submitted_at: Mapped[datetime] = mapped_column(
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Timestamp of formal submission",
+    )
+    payment_status: Mapped[str] = mapped_column(
+        String(50),
+        default="NOT_REQUIRED",
+        server_default="NOT_REQUIRED",
+        nullable=False,
+        doc="Payment status: NOT_REQUIRED, PENDING, PROOF_SUBMITTED, PENDING_VERIFICATION, PAID, FAILED, CANCELLED",
+    )
+    payment_transaction_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payment_transactions.id", ondelete="SET NULL"),
+        nullable=True,
+        doc="Foreign key to payment_transactions.id",
+    )
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
-        doc="Timestamp of submission",
+        doc="Timestamp of creation/drafting",
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -485,6 +545,152 @@ class SchemeApplication(Base):
         "UserProfile",
         foreign_keys=[farmer_id],
     )
+    payment_transaction: Mapped[Optional["PaymentTransaction"]] = relationship(
+        "PaymentTransaction",
+        foreign_keys=[payment_transaction_id],
+    )
 
     def __repr__(self) -> str:
         return f"<SchemeApplication(id={self.id}, scheme_id={self.scheme_id}, farmer_id={self.farmer_id}, status='{self.status}')>"
+
+
+class PaymentTransaction(Base):
+    """Payment transaction supporting scheme applications and marketplace orders."""
+
+    __tablename__ = "payment_transactions"
+
+    __table_args__ = (
+        Index("ix_payment_transactions_farmer", "farmer_id"),
+        Index("ix_payment_transactions_scheme", "scheme_id"),
+        Index("ix_payment_transactions_application", "application_id"),
+        Index("ix_payment_transactions_status", "payment_status"),
+        UniqueConstraint("payment_reference", name="uq_payment_transactions_reference"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+        doc="Unique payment transaction ID",
+    )
+    transaction_type: Mapped[str] = mapped_column(
+        String(50),
+        default="SCHEME_APPLICATION",
+        server_default="SCHEME_APPLICATION",
+        nullable=False,
+        doc="Transaction type: SCHEME_APPLICATION, MARKETPLACE",
+    )
+    farmer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("user_profiles.id", ondelete="RESTRICT"),
+        nullable=False,
+        doc="Foreign key to applicant farmer / user",
+    )
+    scheme_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("government_schemes.id", ondelete="SET NULL"),
+        nullable=True,
+        doc="Foreign key to the government scheme",
+    )
+    application_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scheme_applications.id", ondelete="SET NULL"),
+        nullable=True,
+        doc="Foreign key to the scheme application",
+    )
+    official_fee: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        default=Decimal("0.00"),
+        server_default="0.00",
+        nullable=False,
+        doc="Official government application fee",
+    )
+    service_fee: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        default=Decimal("0.00"),
+        server_default="0.00",
+        nullable=False,
+        doc="KrushiPragya facilitation service fee",
+    )
+    total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        doc="Total payable amount strictly calculated on server (official_fee + service_fee)",
+    )
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        default="INR",
+        server_default="INR",
+        nullable=False,
+        doc="Currency code",
+    )
+    payment_method: Mapped[str] = mapped_column(
+        String(50),
+        default="PHONEPE_STATIC_QR",
+        server_default="PHONEPE_STATIC_QR",
+        nullable=False,
+        doc="Payment method: PHONEPE_STATIC_QR, PAYU, RAZORPAY",
+    )
+    payment_status: Mapped[str] = mapped_column(
+        String(50),
+        default="PENDING",
+        server_default="PENDING",
+        nullable=False,
+        doc="Status: NOT_REQUIRED, PENDING, PROOF_SUBMITTED, PENDING_VERIFICATION, PAID, FAILED, CANCELLED",
+    )
+    payment_reference: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        doc="Unique payment reference or bank UTR number",
+    )
+    refund_status: Mapped[str] = mapped_column(
+        String(50),
+        default="NOT_APPLICABLE",
+        server_default="NOT_APPLICABLE",
+        nullable=False,
+        doc="Refund lifecycle: NOT_APPLICABLE, REQUESTED, PROCESSING, REFUNDED, FAILED",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        doc="Creation timestamp",
+    )
+    paid_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Payment timestamp",
+    )
+    verified_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Timestamp of manual verification",
+    )
+    verified_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("user_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+        doc="User ID of authorized officer/admin who verified the UTR",
+    )
+    notes: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Audit notes or verification remarks",
+    )
+    receipt_data: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        doc="JSON serialized immutable receipt snapshot",
+    )
+
+    # Relationships
+    farmer: Mapped["UserProfile"] = relationship("UserProfile", foreign_keys=[farmer_id])
+    scheme: Mapped[Optional["GovernmentScheme"]] = relationship("GovernmentScheme", foreign_keys=[scheme_id])
+    application: Mapped[Optional["SchemeApplication"]] = relationship(
+        "SchemeApplication",
+        foreign_keys=[application_id],
+    )
+
+    def __repr__(self) -> str:
+        return f"<PaymentTransaction(id={self.id}, type='{self.transaction_type}', amount={self.total_amount}, status='{self.payment_status}')>"

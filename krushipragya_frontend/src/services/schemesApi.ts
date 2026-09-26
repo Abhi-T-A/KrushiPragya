@@ -4,7 +4,16 @@
  */
 
 import { api, API_BASE_URL } from './api';
-import { SchemeDetail, SchemeItem, SchemeListResponse, UserActionResponse } from '../types/schemes';
+import {
+  PaymentProofSubmitResponse,
+  PaymentReceipt,
+  SchemeApplication,
+  SchemeDetail,
+  SchemeItem,
+  SchemeListResponse,
+  SchemePaymentInitiateResponse,
+  UserActionResponse,
+} from '../types/schemes';
 
 export { API_BASE_URL };
 
@@ -163,3 +172,114 @@ export const fetchSavedSchemes = async (
   const res = await fetchSchemesList({ state: 'all', limit: 100, language }, user);
   return (res.items || []).filter((item) => item.is_saved === true);
 };
+
+/**
+ * Apply for a scheme (creates draft/pending application with fee structure)
+ */
+export const applyForScheme = async (
+  schemeId: string,
+  applicationNotes?: string,
+  user?: { phone?: string; id?: string } | null
+): Promise<SchemeApplication> => {
+  const response = await api.post<SchemeApplication>(
+    `/schemes/${schemeId}/apply`,
+    { application_notes: applicationNotes || undefined },
+    { headers: getAuthHeaders(user) }
+  );
+  return response.data;
+};
+
+/**
+ * Initiate PhonePe Static QR payment for a scheme application
+ */
+export const initiateSchemePayment = async (
+  applicationId: string,
+  user?: { phone?: string; id?: string } | null
+): Promise<SchemePaymentInitiateResponse> => {
+  const response = await api.post<SchemePaymentInitiateResponse>(
+    `/schemes/applications/${applicationId}/payment`,
+    {},
+    { headers: getAuthHeaders(user) }
+  );
+  return response.data;
+};
+
+/**
+ * Submit UTR bank reference proof after paying via PhonePe QR
+ */
+export const submitSchemePaymentProof = async (
+  applicationId: string,
+  utr: string,
+  amountPaid: number,
+  notes?: string,
+  user?: { phone?: string; id?: string } | null
+): Promise<PaymentProofSubmitResponse> => {
+  const response = await api.post<PaymentProofSubmitResponse>(
+    `/schemes/applications/${applicationId}/payment/submit-proof`,
+    {
+      utr: utr.trim(),
+      amount_paid: amountPaid,
+      notes: notes || undefined,
+    },
+    { headers: getAuthHeaders(user) }
+  );
+  return response.data;
+};
+
+/**
+ * Fetch scheme payment details, status, and receipt
+ */
+export const fetchSchemePaymentDetails = async (
+  applicationId: string,
+  user?: { phone?: string; id?: string } | null
+): Promise<{
+  application_id: string;
+  scheme_id: string;
+  scheme_title?: string;
+  scheme_title_kn?: string;
+  application_status: string;
+  payment_status: string;
+  transaction_id?: string;
+  total_amount?: number;
+  official_fee?: number;
+  service_fee?: number;
+  payment_reference?: string;
+  payment_method: string;
+  receipt?: PaymentReceipt;
+  fee_info?: any;
+}> => {
+  const response = await api.get(
+    `/schemes/applications/${applicationId}/payment`,
+    { headers: getAuthHeaders(user) }
+  );
+  return response.data;
+};
+
+/**
+ * Submit scheme application after verified payment (or immediately if free)
+ */
+export const submitSchemeApplication = async (
+  applicationId: string,
+  user?: { phone?: string; id?: string } | null
+): Promise<SchemeApplication> => {
+  const response = await api.post<SchemeApplication>(
+    `/schemes/applications/${applicationId}/submit`,
+    {},
+    { headers: getAuthHeaders(user) }
+  );
+  return response.data;
+};
+
+/**
+ * Fetch all applications submitted or tracked by the farmer
+ */
+export const fetchMyApplications = async (
+  user?: { phone?: string; id?: string } | null
+): Promise<SchemeApplication[]> => {
+  const response = await api.get<SchemeApplication[]>(
+    '/schemes/my-applications',
+    { headers: getAuthHeaders(user) }
+  );
+  return response.data;
+};
+

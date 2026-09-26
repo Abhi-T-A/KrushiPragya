@@ -8,6 +8,7 @@ from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.government import GovernmentScheme, SchemeUserState
+from app.schemes.services.scheme_payment_service import SchemePaymentService
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,7 @@ class SchemeService:
                     "url": s.source_url,
                     "last_verified_at": s.last_verified_at.isoformat() if s.last_verified_at else None,
                 },
+                "fee_info": SchemePaymentService.calculate_scheme_fee_info(s),
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "updated_at": s.updated_at.isoformat() if s.updated_at else None,
             })
@@ -213,6 +215,7 @@ class SchemeService:
                 "source_type": scheme.source_type,
                 "crawler_status": scheme.crawler_status or "VERIFIED",
             },
+            "fee_info": SchemePaymentService.calculate_scheme_fee_info(scheme),
             "related_schemes": related_items,
             "created_at": scheme.created_at.isoformat() if scheme.created_at else None,
             "updated_at": scheme.updated_at.isoformat() if scheme.updated_at else None,

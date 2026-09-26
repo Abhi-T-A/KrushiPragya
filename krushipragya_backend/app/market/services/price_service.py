@@ -198,4 +198,8 @@ class PriceService:
             is_seeded=is_seeded,
             data_mode=data_mode,
             source_name=source_name,
+            latest_price=current_modal,
+            trend_15d=trend,
+            period_min_price=lowest_15,
+            period_max_price=highest_15,
         )

@@ -23,7 +23,7 @@ from app.market.models.market_mapping import MarketCropMapping
 from app.market.models.market_price import MarketPriceRecord
 from app.market.models.market_source import MarketDataSource
 from app.models.crop import Crop
-from app.models.marketplace import BuyerOffer, ProduceListing
+from app.models.marketplace import BuyerOffer, MarketplaceTransaction, ProduceListing
 from app.models.role import UserRole
 from app.models.user_profile import UserProfile
 from app.models.village import Village
@@ -54,6 +54,7 @@ class MockMarketDBSession:
         self.follows: List[FarmerMarketFollow] = []
         self.listings: Dict[uuid.UUID, ProduceListing] = {}
         self.offers: Dict[uuid.UUID, BuyerOffer] = {}
+        self.transactions: Dict[uuid.UUID, MarketplaceTransaction] = {}
         self.villages: Dict[str, Village] = {}
 
     def get(self, model, entity_id):
@@ -67,6 +68,8 @@ class MockMarketDBSession:
             return self.listings.get(entity_id)
         if model is BuyerOffer:
             return self.offers.get(entity_id)
+        if model is MarketplaceTransaction:
+            return self.transactions.get(entity_id)
         if model is MarketDataSource:
             return self.sources.get(entity_id)
         if model is Village:
@@ -100,6 +103,8 @@ class MockMarketDBSession:
             self.listings[entity.id] = entity
         elif isinstance(entity, BuyerOffer):
             self.offers[entity.id] = entity
+        elif isinstance(entity, MarketplaceTransaction):
+            self.transactions[entity.id] = entity
 
     def delete(self, entity):
         if isinstance(entity, FarmerMarketFollow):
@@ -108,6 +113,8 @@ class MockMarketDBSession:
             self.listings.pop(entity.id, None)
         elif isinstance(entity, BuyerOffer):
             self.offers.pop(entity.id, None)
+        elif isinstance(entity, MarketplaceTransaction):
+            self.transactions.pop(entity.id, None)
 
     def commit(self):
         pass
@@ -246,6 +253,22 @@ class MockMarketQuery:
                 if "code" in c_str and hasattr(crit, "right") and hasattr(crit.right, "value"):
                     sources = [s for s in sources if s.code == crit.right.value]
             return sources
+
+        # 6b. MarketplaceTransaction query
+        if "transaction" in entity_name:
+            txs = list(self.session.transactions.values())
+            for crit in self._filters:
+                c_str = str(crit).lower()
+                val = getattr(getattr(crit, "right", None), "value", None)
+                if "idempotency_key" in c_str and val is not None:
+                    txs = [t for t in txs if t.idempotency_key == val]
+                if "gateway_order_id" in c_str and val is not None:
+                    txs = [t for t in txs if t.gateway_order_id == val]
+                if "buyer_id" in c_str and val is not None:
+                    txs = [t for t in txs if str(t.buyer_id) == str(val)]
+                if "farmer_id" in c_str and val is not None:
+                    txs = [t for t in txs if str(t.farmer_id) == str(val)]
+            return txs
 
         # 7. Market query
         if "market." in entity_name or entity_name.endswith(".market'>") or "models.market" in entity_name:
@@ -750,3 +773,779 @@ def test_non_admin_cannot_trigger_sync(market_setup):
 
     response = client.post("/api/v1/market/sync", json={}, headers=headers)
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+# ==============================================================================
+# 6. Privacy & Payment Tests
+# ==============================================================================
+
+def test_contact_privacy_hidden_before_accepted_and_revealed_after(market_setup):
+    """Phone number must be hidden before offer is accepted, and revealed only after acceptance."""
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    arecanut = market_setup["crops"]["arecanut"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+
+    # 1. Farmer creates listing
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 10.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 52000.0,
+            "location": "Puttur",
+        },
+        headers=farmer_headers,
+    )
+    assert listing_res.status_code == status.HTTP_201_CREATED
+    listing_id = listing_res.json()["id"]
+
+    # 2. Public / buyer listing detail does NOT expose phone
+    detail_res = client.get(f"/api/v1/market/listings/{listing_id}")
+    assert detail_res.status_code == status.HTTP_200_OK
+    assert "phone" not in detail_res.json()
+    assert "farmer_phone" not in detail_res.json()
+
+    # 3. Buyer submits offer
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 51000.0, "quantity": 10.0, "message": "Ready to buy immediately"},
+        headers=buyer_headers,
+    )
+    assert offer_res.status_code == status.HTTP_201_CREATED
+    offer_id = offer_res.json()["id"]
+
+    # 4. While PENDING, farmer checks offers -> contact_phone MUST be None
+    farmer_offers = client.get(f"/api/v1/market/listings/{listing_id}/offers", headers=farmer_headers).json()
+    assert len(farmer_offers) >= 1
+    pending_offer = next(o for o in farmer_offers if o["offer"]["id"] == offer_id)
+    assert pending_offer["contact_phone"] is None
+
+    # 5. Farmer ACCEPTS offer
+    accept_res = client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT", "notes": "Price agreed, deal confirmed"},
+        headers=farmer_headers,
+    )
+    assert accept_res.status_code == status.HTTP_200_OK
+
+    # 6. Now that offer is ACCEPTED:
+    # Farmer viewing offers sees buyer's authorized phone number
+    updated_farmer_offers = client.get(f"/api/v1/market/listings/{listing_id}/offers", headers=farmer_headers).json()
+    accepted_farmer_view = next(o for o in updated_farmer_offers if o["offer"]["id"] == offer_id)
+    assert accepted_farmer_view["contact_phone"] is not None
+    assert accepted_farmer_view["contact_role"] == "BUYER"
+
+    # Buyer viewing their submitted offers sees farmer's authorized phone number
+    buyer_offers = client.get(f"/api/v1/market/buyers/{buyer_id}/offers", headers=buyer_headers).json()
+    accepted_buyer_view = next(o for o in buyer_offers if o["offer"]["id"] == offer_id)
+    assert accepted_buyer_view["contact_phone"] is not None
+    assert accepted_buyer_view["contact_role"] == "FARMER"
+
+
+def test_payment_order_creation_requires_accepted_offer(market_setup):
+    """Payment order creation requires buyer role and an ACCEPTED offer."""
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    arecanut = market_setup["crops"]["arecanut"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+
+    # Farmer creates listing
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 5.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 50000.0,
+            "location": "Shimoga",
+        },
+        headers=farmer_headers,
+    )
+    listing_id = listing_res.json()["id"]
+
+    # Buyer submits offer
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 49500.0, "quantity": 5.0},
+        headers=buyer_headers,
+    )
+    offer_id = offer_res.json()["id"]
+
+    # Attempt to create payment while PENDING -> Must be rejected (400 Bad Request)
+    pay_res = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "test-key-001"},
+        headers=buyer_headers,
+    )
+    assert pay_res.status_code == status.HTTP_400_BAD_REQUEST
+
+    # Farmer accepts offer
+    client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT"},
+        headers=farmer_headers,
+    )
+
+    # Buyer creates payment order on ACCEPTED offer -> Succeeds (201 Created)
+    pay_res_2 = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "test-key-001"},
+        headers=buyer_headers,
+    )
+    assert pay_res_2.status_code == status.HTTP_201_CREATED
+    data = pay_res_2.json()
+    assert "transaction_id" in data
+    assert data["amount"] == "247500.00"
+    assert data["payment_status"] == "PAYMENT_PENDING"
+
+
+def test_payu_provider_selection_and_inactive_razorpay():
+    """Verify PayU is active by default and Razorpay remains available but inactive."""
+    from app.market.services.payment_provider import (
+        PayUPaymentProvider,
+        RazorpayPaymentProvider,
+        get_payment_provider,
+    )
+
+    # 1. Default provider should be PayU
+    provider = get_payment_provider()
+    assert isinstance(provider, PayUPaymentProvider)
+    assert provider.provider_name == "payu"
+
+    # 2. Razorpay provider remains available and instantiable
+    rzp = RazorpayPaymentProvider(key_id="rzp_test_123", key_secret="rzp_secret_456")
+    assert rzp.provider_name == "razorpay"
+    assert rzp.is_configured() is True
+
+
+def test_payu_hash_generation_and_verification():
+    """Verify PayU SHA-512 payment request hash and reverse hash verification."""
+    from app.market.services.payment_provider import PayUPaymentProvider
+
+    provider = PayUPaymentProvider(
+        merchant_key="test_key_123",
+        merchant_salt="test_salt_456",
+        environment="test",
+    )
+    assert provider.is_configured() is True
+    assert "test.payu.in" in provider.action_url
+
+    # Generate request hash
+    txnid = "tx_sample_001"
+    amount = Decimal("1500.00")
+    productinfo = "Arecanut Produce"
+    firstname = "Ramesh"
+    email = "ramesh@krushipragya.in"
+
+    request_hash = provider.generate_hash(
+        txnid=txnid,
+        amount=amount,
+        productinfo=productinfo,
+        firstname=firstname,
+        email=email,
+        udf1="offer_1",
+        udf2="listing_1",
+    )
+    assert isinstance(request_hash, str)
+    assert len(request_hash) == 128  # sha512 hex length
+
+    valid_resp_hash = provider.generate_response_hash(
+        txnid=txnid,
+        amount=amount,
+        productinfo=productinfo,
+        firstname=firstname,
+        email=email,
+        status="success",
+        udf1="offer_1",
+    )
+
+    valid_payload = {
+        "status": "success",
+        "txnid": txnid,
+        "amount": "1500.00",
+        "productinfo": productinfo,
+        "firstname": firstname,
+        "email": email,
+        "udf1": "offer_1",
+        "hash": valid_resp_hash,
+    }
+    assert provider.verify_payment_hash(valid_payload) is True
+
+    # Tampered / invalid hash must be rejected
+    invalid_payload = dict(valid_payload, hash="tampered_hash_value_123")
+    assert provider.verify_payment_hash(invalid_payload) is False
+
+
+def test_payment_order_creation_payu_unconfigured_and_configured(market_setup, monkeypatch):
+    """Test order creation handles unconfigured and configured PayU credentials safely."""
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    arecanut = market_setup["crops"]["arecanut"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+
+    # 1. Create listing and accept offer
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 2.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 52000.0,
+            "location": "Ujire",
+        },
+        headers=farmer_headers,
+    )
+    listing_id = listing_res.json()["id"]
+
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 51000.0, "quantity": 2.0},
+        headers=buyer_headers,
+    )
+    offer_id = offer_res.json()["id"]
+
+    client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT"},
+        headers=farmer_headers,
+    )
+
+    # Case A: PayU Unconfigured
+    from app.market.services.payment_provider import PayUPaymentProvider
+    unconfigured_provider = PayUPaymentProvider(merchant_key=None, merchant_salt=None)
+    from app.market.routers.market_payment import get_payment_service
+    from app.market.services.market_payment_service import MarketPaymentService
+    app.dependency_overrides[get_payment_service] = lambda: MarketPaymentService(unconfigured_provider)
+
+    res_unconf = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "unconf-key-1"},
+        headers=buyer_headers,
+    )
+    assert res_unconf.status_code == status.HTTP_201_CREATED
+    data_unconf = res_unconf.json()
+    assert data_unconf["gateway_configured"] is False
+    assert data_unconf["checkout_data"] is None
+    assert "Online payment is currently unavailable" in data_unconf["message_en"]
+
+    # Case B: PayU Configured with test credentials
+    configured_provider = PayUPaymentProvider(
+        merchant_key="test_mkey_abc",
+        merchant_salt="test_salt_xyz",
+        environment="test",
+    )
+    app.dependency_overrides[get_payment_service] = lambda: MarketPaymentService(configured_provider)
+
+    res_conf = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "conf-key-1"},
+        headers=buyer_headers,
+    )
+    assert res_conf.status_code == status.HTTP_201_CREATED
+    data_conf = res_conf.json()
+    assert data_conf["gateway_configured"] is True
+    assert data_conf["provider"] == "payu"
+    assert data_conf["checkout_data"] is not None
+    assert "test.payu.in" in data_conf["checkout_data"]["action_url"]
+    assert data_conf["checkout_data"]["params"]["key"] == "test_mkey_abc"
+    assert "hash" in data_conf["checkout_data"]["params"]
+    # Merchant salt must NEVER appear in client payload
+    assert "test_salt_xyz" not in str(data_conf)
+
+    # Clean up override
+    app.dependency_overrides.pop(get_payment_service, None)
+
+
+def test_payment_order_invalid_offer_rejected(market_setup):
+    """Attempting payment order on non-existent or rejected offers must fail."""
+    buyer_id = market_setup["buyer_id"]
+    farmer_id = market_setup["farmer_id"]
+    buyer_headers = auth_header(buyer_id)
+    farmer_headers = auth_header(farmer_id)
+    arecanut = market_setup["crops"]["arecanut"]
+
+    # 1. Nonexistent offer
+    random_id = str(uuid.uuid4())
+    res_fake = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": random_id},
+        headers=buyer_headers,
+    )
+    assert res_fake.status_code == status.HTTP_400_BAD_REQUEST
+
+    # 2. Offer rejected by farmer
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 1.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 50000.0,
+            "location": "Puttur",
+        },
+        headers=farmer_headers,
+    )
+    listing_id = listing_res.json()["id"]
+
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 30000.0, "quantity": 1.0},
+        headers=buyer_headers,
+    )
+    offer_id = offer_res.json()["id"]
+
+    client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "REJECT"},
+        headers=farmer_headers,
+    )
+
+    res_rejected = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id},
+        headers=buyer_headers,
+    )
+    assert res_rejected.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_payment_order_idempotency(market_setup):
+    """Submitting identical idempotency_key returns the existing transaction."""
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    arecanut = market_setup["crops"]["arecanut"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 3.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 50000.0,
+            "location": "Ujire",
+        },
+        headers=farmer_headers,
+    )
+    listing_id = listing_res.json()["id"]
+
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 50000.0, "quantity": 3.0},
+        headers=buyer_headers,
+    )
+    offer_id = offer_res.json()["id"]
+
+    client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT"},
+        headers=farmer_headers,
+    )
+
+    # First request
+    res1 = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "unique-idemp-key-100"},
+        headers=buyer_headers,
+    )
+    assert res1.status_code == status.HTTP_201_CREATED
+    tx_id_1 = res1.json()["transaction_id"]
+
+    # Second request with same idempotency key
+    res2 = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "unique-idemp-key-100"},
+        headers=buyer_headers,
+    )
+    assert res2.status_code == status.HTTP_201_CREATED
+    tx_id_2 = res2.json()["transaction_id"]
+    assert tx_id_1 == tx_id_2
+
+
+def test_payu_payment_verification_valid_and_invalid(market_setup):
+    """Test cryptographic verification of PayU payments and transition to PAID."""
+    import hashlib
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    arecanut = market_setup["crops"]["arecanut"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+
+    from app.market.services.payment_provider import PayUPaymentProvider
+    configured_provider = PayUPaymentProvider(
+        merchant_key="test_key_v",
+        merchant_salt="test_salt_v",
+        environment="test",
+    )
+    from app.market.routers.market_payment import get_payment_service
+    from app.market.services.market_payment_service import MarketPaymentService
+    app.dependency_overrides[get_payment_service] = lambda: MarketPaymentService(configured_provider)
+
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 1.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 50000.0,
+            "location": "Ujire",
+        },
+        headers=farmer_headers,
+    )
+    listing_id = listing_res.json()["id"]
+
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 50000.0, "quantity": 1.0},
+        headers=buyer_headers,
+    )
+    offer_id = offer_res.json()["id"]
+
+    client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT"},
+        headers=farmer_headers,
+    )
+
+    pay_res = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "v-key-01"},
+        headers=buyer_headers,
+    )
+    tx_data = pay_res.json()
+    tx_id = tx_data["transaction_id"]
+    txnid = tx_data["gateway_order_id"]
+
+    # 1. Invalid signature submitted -> PAYMENT_FAILED
+    inv_res = client.post(
+        "/api/v1/market/payments/verify",
+        json={
+            "transaction_id": tx_id,
+            "payu_txnid": txnid,
+            "payu_payment_id": "mih_999",
+            "payu_status": "success",
+            "payu_hash": "bad_hash_signature",
+        },
+        headers=buyer_headers,
+    )
+    assert inv_res.status_code == status.HTTP_200_OK
+    assert inv_res.json()["payment_status"] == "PAYMENT_FAILED"
+
+    # 2. Valid signature submitted -> PAYMENT_SUCCESS and PAID
+    valid_hash = configured_provider.generate_response_hash(
+        txnid=txnid,
+        amount="50000.00",
+        productinfo="Produce Listing",
+        firstname="Buyer",
+        email="buyer@krushipragya.in",
+        status="success",
+    )
+
+    valid_res = client.post(
+        "/api/v1/market/payments/verify",
+        json={
+            "transaction_id": tx_id,
+            "payu_txnid": txnid,
+            "payu_payment_id": "mih_12345",
+            "payu_status": "success",
+            "payu_hash": valid_hash,
+        },
+        headers=buyer_headers,
+    )
+    assert valid_res.status_code == status.HTTP_200_OK
+    v_data = valid_res.json()
+    assert v_data["payment_status"] == "PAYMENT_SUCCESS"
+    assert v_data["order_status"] == "PAID"
+
+    # 3. Already verified payment cannot be transitioned again
+    repeat_res = client.post(
+        "/api/v1/market/payments/verify",
+        json={
+            "transaction_id": tx_id,
+            "payu_txnid": txnid,
+            "payu_payment_id": "mih_12345",
+            "payu_status": "success",
+            "payu_hash": valid_hash,
+        },
+        headers=buyer_headers,
+    )
+    assert repeat_res.status_code == status.HTTP_200_OK
+    assert repeat_res.json()["payment_status"] == "PAYMENT_SUCCESS"
+
+    app.dependency_overrides.pop(get_payment_service, None)
+
+
+def test_payu_webhook_handling_and_duplicate_idempotency(market_setup):
+    """Test PayU authoritative webhook processing and idempotency."""
+    import hashlib
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    arecanut = market_setup["crops"]["arecanut"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+
+    from app.market.services.payment_provider import PayUPaymentProvider
+    configured_provider = PayUPaymentProvider(
+        merchant_key="test_wh_key",
+        merchant_salt="test_wh_salt",
+        environment="test",
+    )
+    from app.market.routers.market_payment import get_payment_service
+    from app.market.services.market_payment_service import MarketPaymentService
+    app.dependency_overrides[get_payment_service] = lambda: MarketPaymentService(configured_provider)
+
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 1.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 50000.0,
+            "location": "Ujire",
+        },
+        headers=farmer_headers,
+    )
+    listing_id = listing_res.json()["id"]
+
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 50000.0, "quantity": 1.0},
+        headers=buyer_headers,
+    )
+    offer_id = offer_res.json()["id"]
+
+    client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT"},
+        headers=farmer_headers,
+    )
+
+    pay_res = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "wh-key-01"},
+        headers=buyer_headers,
+    )
+    txnid = pay_res.json()["gateway_order_id"]
+
+    # 1. Webhook with invalid hash -> rejected (400)
+    wh_inv = client.post(
+        "/api/v1/market/payments/webhook",
+        json={
+            "status": "success",
+            "txnid": txnid,
+            "amount": "50000.00",
+            "productinfo": "Produce Listing",
+            "firstname": "Buyer",
+            "email": "buyer@krushipragya.in",
+            "hash": "tampered_hash",
+        },
+    )
+    assert wh_inv.status_code == status.HTTP_400_BAD_REQUEST
+
+    # 2. Webhook with valid hash -> success
+    valid_hash = configured_provider.generate_response_hash(
+        txnid=txnid,
+        amount="50000.00",
+        productinfo="Produce Listing",
+        firstname="Buyer",
+        email="buyer@krushipragya.in",
+        status="success",
+    )
+
+    wh_val = client.post(
+        "/api/v1/market/payments/webhook",
+        json={
+            "status": "success",
+            "txnid": txnid,
+            "amount": "50000.00",
+            "productinfo": "Produce Listing",
+            "firstname": "Buyer",
+            "email": "buyer@krushipragya.in",
+            "mihpayid": "mih_wh_999",
+            "hash": valid_hash,
+        },
+    )
+    assert wh_val.status_code == status.HTTP_200_OK
+    assert wh_val.json()["status"] == "success"
+
+    # 3. Duplicate webhook -> idempotently returns already_processed
+    wh_dup = client.post(
+        "/api/v1/market/payments/webhook",
+        json={
+            "status": "success",
+            "txnid": txnid,
+            "amount": "50000.00",
+            "productinfo": "Produce Listing",
+            "firstname": "Buyer",
+            "email": "buyer@krushipragya.in",
+            "mihpayid": "mih_wh_999",
+            "hash": valid_hash,
+        },
+    )
+    assert wh_dup.status_code == status.HTTP_200_OK
+    assert wh_dup.json()["status"] == "already_processed"
+
+    app.dependency_overrides.pop(get_payment_service, None)
+
+
+def test_transaction_ownership_and_unauthorized_access(market_setup):
+    """Enforce that only transaction buyer or seller can retrieve transaction."""
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    arecanut = market_setup["crops"]["arecanut"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 1.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 50000.0,
+            "location": "Ujire",
+        },
+        headers=farmer_headers,
+    )
+    listing_id = listing_res.json()["id"]
+
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={"offered_price": 50000.0, "quantity": 1.0},
+        headers=buyer_headers,
+    )
+    offer_id = offer_res.json()["id"]
+
+    client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT"},
+        headers=farmer_headers,
+    )
+
+    pay_res = client.post(
+        "/api/v1/market/payments/create-order",
+        json={"offer_id": offer_id, "idempotency_key": "own-key-01"},
+        headers=buyer_headers,
+    )
+    tx_id = pay_res.json()["transaction_id"]
+
+    # 1. Buyer can retrieve
+    res_b = client.get(f"/api/v1/market/payments/transactions/{tx_id}", headers=buyer_headers)
+    assert res_b.status_code == status.HTTP_200_OK
+
+    # 2. Farmer (seller) can retrieve
+    res_f = client.get(f"/api/v1/market/payments/transactions/{tx_id}", headers=farmer_headers)
+    assert res_f.status_code == status.HTTP_200_OK
+
+    # 3. Third party cannot retrieve (403)
+    unauthorized_id = uuid.uuid4()
+    session = market_setup["session"]
+    unauth_profile = UserProfile(
+        id=unauthorized_id,
+        phone="9999900000",
+        full_name="Unauthorized User",
+    )
+    unauth_role = UserRole(user_id=unauthorized_id, role_code="BUYER", status="ACTIVE")
+    session.add(unauth_profile)
+    session.add(unauth_role)
+    unauth_headers = auth_header(unauthorized_id)
+
+    res_unauth = client.get(f"/api/v1/market/payments/transactions/{tx_id}", headers=unauth_headers)
+    assert res_unauth.status_code == status.HTTP_403_FORBIDDEN
+
+
+# ==============================================================================
+# 9. Regression Tests: Nearby Mandis Sorting & Graceful Null Price Handling
+# ==============================================================================
+
+def test_nearby_mandis_ujire_arecanut_sort_regression(market_setup):
+    """Regression test: Ujire + Arecanut + 500km with both distance and price sorting.
+    Verifies that Decimal sorting does not crash with NameError and returns valid metadata.
+    """
+    arecanut = market_setup["crops"]["arecanut"]
+
+    # 1. Test sort=distance
+    res_dist = client.get(
+        f"/api/v1/market/mandis/nearby?crop_id={arecanut.id}&latitude=13.0039&longitude=75.3216&radius_km=500&sort=distance"
+    )
+    assert res_dist.status_code == status.HTTP_200_OK
+    data_dist = res_dist.json()
+    assert data_dist["crop"] == "Arecanut"
+    assert data_dist["count"] >= 1
+    assert data_dist["source_status"] == "DEMO"
+    assert data_dist["sync_status"] == "UNAVAILABLE"
+    assert len(data_dist["markets"]) >= 1
+
+    # 2. Test sort=price (previously crashed with NameError: name 'Decimal' is not defined)
+    res_price = client.get(
+        f"/api/v1/market/mandis/nearby?crop_id={arecanut.id}&latitude=13.0039&longitude=75.3216&radius_km=500&sort=price"
+    )
+    assert res_price.status_code == status.HTTP_200_OK
+    data_price = res_price.json()
+    assert data_price["count"] >= 1
+    markets_price = data_price["markets"]
+    assert len(markets_price) >= 1
+
+    # Ensure prices are in descending order where present
+    priced = [float(m["latest_price"]["modal"]) for m in markets_price if m["latest_price"] and m["latest_price"]["modal"]]
+    if len(priced) >= 2:
+        for i in range(len(priced) - 1):
+            assert priced[i] >= priced[i + 1]
+
+
+def test_nearby_mandis_market_without_price_graceful(market_setup):
+    """Verify that a market with no price records returns latest_price=null without HTTP 500."""
+    session = market_setup["session"]
+    arecanut = market_setup["crops"]["arecanut"]
+
+    # Create a fresh market within radius that has zero price records for arecanut
+    unpriced_market = Market(
+        id=uuid.uuid4(),
+        code="KA_DK_BELTHANGADY_NEW",
+        name="Belthangady Rural Yard",
+        state="Karnataka",
+        district="Dakshina Kannada",
+        taluk="Belthangady",
+        latitude=13.0100,
+        longitude=75.3200,
+        is_active=True,
+    )
+    session.add(unpriced_market)
+    session.commit()
+
+    # Query with sort=distance
+    res_dist = client.get(
+        f"/api/v1/market/mandis/nearby?crop_id={arecanut.id}&latitude=13.0039&longitude=75.3216&radius_km=500&sort=distance"
+    )
+    assert res_dist.status_code == status.HTTP_200_OK
+    data_dist = res_dist.json()
+    belthangady = next((m for m in data_dist["markets"] if m["name"] == "Belthangady Rural Yard"), None)
+    assert belthangady is not None
+    assert belthangady["latest_price"] is None
+    assert belthangady["trend"] == "STABLE"
+
+    # Query with sort=price (unpriced markets must be sorted gracefully at the end)
+    res_price = client.get(
+        f"/api/v1/market/mandis/nearby?crop_id={arecanut.id}&latitude=13.0039&longitude=75.3216&radius_km=500&sort=price"
+    )
+    assert res_price.status_code == status.HTTP_200_OK
+    data_price = res_price.json()
+    belthangady_price = next((m for m in data_price["markets"] if m["name"] == "Belthangady Rural Yard"), None)
+    assert belthangady_price is not None
+    assert belthangady_price["latest_price"] is None
+
+
+

@@ -10,9 +10,11 @@ import { MapPin, Globe2, User, Sprout } from 'lucide-react-native';
 export const Header: React.FC<{
   title?: string;
   showVillage?: boolean;
+  rightAction?: React.ReactNode;
 }> = ({
   title,
   showVillage = true,
+  rightAction,
 }) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -87,7 +89,12 @@ export const Header: React.FC<{
         </View>
       </View>
 
-      {title && <Text style={styles.title}>{title}</Text>}
+      {title && (
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{title}</Text>
+          {rightAction}
+        </View>
+      )}
     </View>
   );
 };
@@ -154,11 +161,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
+  },
   title: {
     ...Typography.title1,
     color: Colors.textPrimary,
-    paddingHorizontal: Spacing.md,
-    marginTop: Spacing.xs,
   },
   brandCol: {
     flex: 1,

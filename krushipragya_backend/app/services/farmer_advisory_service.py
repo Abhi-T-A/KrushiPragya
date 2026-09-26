@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import hashlib
 import json
 import logging
 from typing import Any, Dict, List, Literal, Optional
@@ -9,12 +10,22 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.crop_report import CropReport
 from app.models.crop_report_diagnosis import CropReportDiagnosis
+from app.models.farmer_advisory import FarmerAdvisory
 from app.models.farmer_crop import FarmerCrop
 from app.models.user_profile import UserProfile
 from app.models.village import Village
 from app.schemas.advisory import (
+    AdvisoryActionItem,
+    AdvisoryCropContext,
+    AdvisoryLocationContext,
+    FarmerAdvisoriesListResponse,
     FarmerComprehensiveAdvisoryResponse,
     StructuredAdvisoryContext,
+)
+from app.services.advisory_validator import (
+    AdvisoryValidator,
+    SAFE_NO_DATA_MESSAGE_EN,
+    SAFE_NO_DATA_MESSAGE_KN,
 )
 from app.schemas.weather import (
     AdvisoryExplanation,
@@ -295,12 +306,80 @@ class FarmerAdvisoryService:
         )
         return self.format_result(result, language=language)
 
+    @staticmethod
+    def _model_to_response(
+        record: FarmerAdvisory,
+        target_lang: str = "kn",
+    ) -> FarmerComprehensiveAdvisoryResponse:
+        """Map a persisted FarmerAdvisory database record back to FarmerComprehensiveAdvisoryResponse."""
+        actions_models: List[AdvisoryActionItem] = []
+        for a in (record.structured_actions or []):
+            if isinstance(a, dict):
+                actions_models.append(
+                    AdvisoryActionItem(
+                        action_kn=a.get("action_kn", ""),
+                        action_en=a.get("action_en"),
+                        priority=a.get("priority", 1),
+                        time_window=a.get("time_window", "ಮುಂದಿನ 24-48 ಗಂಟೆಗಳು"),
+                        category=a.get("category", "ACTIVITY"),
+                    )
+                )
+
+        provenance_list: List[AdvisoryProvenance] = []
+        for ev in (record.evidence or []):
+            if isinstance(ev, dict) and ev.get("type") == "rule":
+                provenance_list.append(
+                    AdvisoryProvenance(
+                        rule_id=ev.get("rule_id", 0) or 0,
+                        risk_name=ev.get("risk_name", ""),
+                        risk_level=ev.get("risk_level", "INFO"),
+                        source_name=ev.get("source", ""),
+                    )
+                )
+
+        confidence_kn_map = {
+            "HIGH": "ಹೆಚ್ಚು",
+            "MEDIUM": "ಮಧ್ಯಮ",
+            "LOW": "ಕಡಿಮೆ",
+            "INSUFFICIENT_DATA": "ಸಾಕಷ್ಟು ಮಾಹಿತಿಯಿಲ್ಲ",
+        }
+        conf_kn = confidence_kn_map.get(record.confidence_level, "ಹೆಚ್ಚು")
+        summary_text = record.summary_kn if (target_lang == "kn" and record.summary_kn) else record.summary
+        title_text = record.title_kn if (target_lang == "kn" and record.title_kn) else record.title
+
+        return FarmerComprehensiveAdvisoryResponse(
+            advisory_id=str(record.id),
+            title=title_text,
+            title_kn=record.title_kn,
+            severity=record.risk_level,
+            risk_level=record.risk_level,
+            summary=summary_text,
+            summary_kn=record.summary_kn,
+            reason=record.reason,
+            recommended_actions=record.recommended_actions or [],
+            actions=actions_models,
+            language=target_lang,  # type: ignore
+            sources=[ev.get("source") for ev in (record.evidence or []) if ev.get("source")],
+            provenance=provenance_list,
+            is_llm_generated=record.is_llm_generated,
+            generated_at=record.created_at,
+            valid_from=record.valid_from,
+            valid_until=record.valid_until,
+            forecast_valid_until=record.valid_until,
+            weather_observed_at=record.weather_observed_at,
+            confidence_level=record.confidence_level,
+            confidence_level_kn=conf_kn,
+            status=record.status,
+            evidence=record.evidence or [],
+        )
+
     def get_comprehensive_advisory(
         self,
         db: Session,
         farmer_id: uuid.UUID,
         crop_id: Optional[uuid.UUID] = None,
         language: Optional[Literal["en", "kn"]] = None,
+        force_refresh: bool = False,
     ) -> FarmerComprehensiveAdvisoryResponse:
         """Compose a unified advisory synthesizing weather forecasts, disease diagnoses, and crop context.
 
@@ -309,6 +388,7 @@ class FarmerAdvisoryService:
             farmer_id: UUID of the requesting farmer
             crop_id: Optional UUID of specific farmer_crop to focus on (validates ownership)
             language: Optional presentation language ('en' or 'kn'). Defaults to farmer's preference.
+            force_refresh: If True, bypasses cache and forces re-evaluation.
 
         Returns:
             FarmerComprehensiveAdvisoryResponse: Structured farmer advisory
@@ -355,6 +435,8 @@ class FarmerAdvisoryService:
         crop_name_en = farmer_crop.crop.name_en if (farmer_crop and farmer_crop.crop) else "General Farm"
         crop_name_kn = farmer_crop.crop.name_kn if (farmer_crop and farmer_crop.crop) else "ಸಾಮಾನ್ಯ ಕೃಷಿ"
         crop_code = farmer_crop.crop.code if (farmer_crop and farmer_crop.crop) else "general"
+
+        now_utc = datetime.now(timezone.utc)
 
         # 4. Retrieve fresh weather/forecast advisory context
         weather_advisories: List[FarmerAdvisoryItem] = []
@@ -417,7 +499,83 @@ class FarmerAdvisoryService:
             if source_tag not in sources:
                 sources.append(source_tag)
 
-        # 6. Determine overall severity deterministically
+        # 6. Build weather risks dict early for conflict resolution
+        weather_risks_dict = []
+        for adv in weather_advisories:
+            weather_risks_dict.append({
+                "rule_id": adv.provenance.rule_id if adv.provenance else None,
+                "risk_name": adv.risk_name,
+                "risk_level": adv.risk_level,
+                "reason": " | ".join(exp.explanation_en for exp in adv.explanations) if adv.explanations else (adv.matched_factors[0] if adv.matched_factors else ""),
+                "action": adv.message_kn if target_lang == "kn" and adv.message_kn else adv.message_en,
+            })
+
+        # 7. Collect raw recommended actions deterministically
+        raw_recommended_actions: List[str] = []
+        for adv in weather_advisories:
+            act = adv.message_kn if target_lang == "kn" and adv.message_kn else adv.message_en
+            if act and act not in raw_recommended_actions:
+                raw_recommended_actions.append(act)
+
+        if latest_diagnosis and latest_diagnosis.predicted_class != "healthy":
+            diag_label = latest_diagnosis.predicted_class.replace("_", " ").title()
+            if target_lang == "kn":
+                disease_action = f"{latest_diagnosis.predicted_class} ಲಕ್ಷಣಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಶಿಫಾರಸು ಮಾಡಿದ ಸಸ್ಯ ಸಂರಕ್ಷಣಾ ಕ್ರಮಗಳನ್ನು ಅನುಸರಿಸಿ."
+            else:
+                disease_action = f"Inspect field for signs of {diag_label} and follow standard plant protection measures."
+            if disease_action not in raw_recommended_actions:
+                raw_recommended_actions.append(disease_action)
+
+        if not raw_recommended_actions:
+            if target_lang == "kn":
+                raw_recommended_actions = [
+                    "ನಿಯಮಿತ ಕೃಷಿ ಮೇಲ್ವಿಚಾರಣೆಯನ್ನು ಮುಂದುವರಿಸಿ.",
+                    "ತೋಟದಲ್ಲಿ ನೀರು ಸರಾಗವಾಗಿ ಹರಿದುಹೋಗುವಂತೆ ಒಳಚರಂಡಿ ವ್ಯವಸ್ಥೆಯನ್ನು ಕಾಪಾಡಿಕೊಳ್ಳಿ.",
+                ]
+            else:
+                raw_recommended_actions = [
+                    "Continue routine plot monitoring and crop surveillance.",
+                    "Ensure adequate field drainage and clean cultivation practices.",
+                ]
+
+        # 8. Deterministic conflict resolution (e.g. suppress spraying before imminent heavy rainfall)
+        rainfall_48h = float(weather_metrics.rainfall_mm_48h) if (weather_metrics and weather_metrics.rainfall_mm_48h is not None) else None
+        recommended_actions = AdvisoryValidator.resolve_conflicts(
+            weather_risks=weather_risks_dict,
+            recommended_actions=raw_recommended_actions,
+            rainfall_48h_mm=rainfall_48h,
+            language=target_lang,
+        )
+
+        # 9. Duplicate control and fast caching lookup
+        rule_ids_str = ",".join(str(adv.provenance.rule_id) for adv in weather_advisories if adv.provenance and adv.provenance.rule_id)
+        obs_str = weather_observed_at.isoformat() if weather_observed_at else "no_obs"
+        diag_id_str = str(latest_diagnosis.id) if latest_diagnosis else "no_diag"
+        fingerprint = hashlib.sha256(
+            f"{farmer_id}:{crop_code}:{farmer.village_id}:{rule_ids_str}:{obs_str}:{diag_id_str}:{target_lang}".encode("utf-8")
+        ).hexdigest()
+
+        if not force_refresh:
+            try:
+                cached_advisory = (
+                    db.query(FarmerAdvisory)
+                    .filter(
+                        FarmerAdvisory.farmer_id == farmer_id,
+                        FarmerAdvisory.crop_code == crop_code,
+                        FarmerAdvisory.status == "ACTIVE",
+                        FarmerAdvisory.fingerprint == fingerprint,
+                        FarmerAdvisory.valid_until > now_utc,
+                    )
+                    .order_by(FarmerAdvisory.created_at.desc())
+                    .first()
+                )
+                if cached_advisory is not None:
+                    logger.info("Serving active advisory from cache/database for farmer %s / crop %s", farmer_id, crop_code)
+                    return self._model_to_response(cached_advisory, target_lang)
+            except Exception as cache_lookup_exc:
+                logger.debug("Advisory cache lookup bypassed: %s", cache_lookup_exc)
+
+        # 10. Determine overall severity deterministically
         severity = "INFO"
         if any(a.risk_level == "HIGH" for a in weather_advisories):
             severity = "HIGH"
@@ -428,35 +586,7 @@ class FarmerAdvisoryService:
         elif weather_advisories:
             severity = "LOW"
 
-        # 7. Collect recommended actions deterministically
-        recommended_actions: List[str] = []
-        for adv in weather_advisories:
-            act = adv.message_kn if target_lang == "kn" and adv.message_kn else adv.message_en
-            if act and act not in recommended_actions:
-                recommended_actions.append(act)
-
-        if latest_diagnosis and latest_diagnosis.predicted_class != "healthy":
-            diag_label = latest_diagnosis.predicted_class.replace("_", " ").title()
-            if target_lang == "kn":
-                disease_action = f"{latest_diagnosis.predicted_class} ಲಕ್ಷಣಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಶಿಫಾರಸು ಮಾಡಿದ ಸಸ್ಯ ಸಂರಕ್ಷಣಾ ಕ್ರಮಗಳನ್ನು ಅನುಸರಿಸಿ."
-            else:
-                disease_action = f"Inspect field for signs of {diag_label} and follow standard plant protection measures."
-            if disease_action not in recommended_actions:
-                recommended_actions.append(disease_action)
-
-        if not recommended_actions:
-            if target_lang == "kn":
-                recommended_actions = [
-                    "ನಿಯಮಿತ ಕೃಷಿ ಮೇಲ್ವಿಚಾರಣೆಯನ್ನು ಮುಂದುವರಿಸಿ.",
-                    "ತೋಟದಲ್ಲಿ ನೀರು ಸರಾಗವಾಗಿ ಹರಿದುಹೋಗುವಂತೆ ಒಳಚರಂಡಿ ವ್ಯವಸ್ಥೆಯನ್ನು ಕಾಪಾಡಿಕೊಳ್ಳಿ.",
-                ]
-            else:
-                recommended_actions = [
-                    "Continue routine plot monitoring and crop surveillance.",
-                    "Ensure adequate field drainage and clean cultivation practices.",
-                ]
-
-        # 8. Compose deterministic reason string
+        # 11. Compose deterministic reason string
         reasons_list: List[str] = []
         if weather_reasons:
             reasons_list.extend(weather_reasons)
@@ -500,15 +630,14 @@ class FarmerAdvisoryService:
         else:
             reason_str = " | ".join(reasons_list)
 
-        # 9. Deterministic title
+        # 12. Deterministic title
         farmer_name = farmer.full_name or "Farmer"
         if target_lang == "kn":
             title = f"{farmer_name} ಅವರಿಗೆ ಕೃಷಿ ಸಲಹೆ - {crop_name_kn}"
         else:
             title = f"Agricultural Advisory for {farmer_name} - {crop_name_en}"
 
-        # 10. Compile fresh StructuredAdvisoryContext
-        now_utc = datetime.now(timezone.utc)
+        # 13. Compile StructuredAdvisoryContext
         village_obj = farmer.village or (db.get(Village, farmer.village_id) if farmer.village_id else None)
         farmer_dict = {
             "name": farmer_name,
@@ -542,16 +671,6 @@ class FarmerAdvisoryService:
                 },
             }
 
-        weather_risks_dict = []
-        for adv in weather_advisories:
-            weather_risks_dict.append({
-                "rule_id": adv.provenance.rule_id if adv.provenance else None,
-                "risk_name": adv.risk_name,
-                "risk_level": adv.risk_level,
-                "reason": " | ".join(exp.explanation_en for exp in adv.explanations) if adv.explanations else (adv.matched_factors[0] if adv.matched_factors else ""),
-                "action": adv.message_kn if target_lang == "kn" and adv.message_kn else adv.message_en,
-            })
-
         disease_dict = {
             "diagnosis_available": bool(latest_diagnosis is not None),
             "crop": latest_diagnosis.crop if latest_diagnosis else None,
@@ -579,9 +698,10 @@ class FarmerAdvisoryService:
 
         user_prompt = structured_context.to_llm_prompt_text(target_lang=target_lang)
 
-        # 11. Synthesize summary with configured LLMProvider (Groq/Ollama), with robust fallback
+        # 14. Synthesize summary with configured LLMProvider and validate against hallucinations
         summary = ""
         is_llm_generated = False
+        rule_texts = [a.message_en for a in weather_advisories if a.message_en] + [a.message_kn for a in weather_advisories if a.message_kn]
 
         try:
             llm_text = self.llm_provider.generate(
@@ -590,7 +710,7 @@ class FarmerAdvisoryService:
             )
             if llm_text and llm_text.strip():
                 cleaned = llm_text.strip()
-                # If response was returned as JSON, parse safely to extract summary
+                # Parse JSON if returned
                 if cleaned.startswith("{") and cleaned.endswith("}"):
                     try:
                         parsed = json.loads(cleaned)
@@ -599,22 +719,31 @@ class FarmerAdvisoryService:
                     except Exception:
                         pass
 
-                # Never allow LLM hallucinated sources to leak into output
+                # Strip hallucinated sources
                 if "\nSource:" in cleaned:
                     cleaned = cleaned.split("\nSource:")[0].strip()
                 if "\nSources:" in cleaned:
                     cleaned = cleaned.split("\nSources:")[0].strip()
 
-                if cleaned:
+                # Validate against unapproved chemicals and dosages
+                val_res = AdvisoryValidator.validate_llm_text(
+                    llm_text=cleaned,
+                    approved_actions=recommended_actions,
+                    rule_texts=rule_texts,
+                )
+
+                if val_res.is_valid and cleaned:
                     summary = cleaned
                     is_llm_generated = True
+                else:
+                    logger.warning("LLM output failed safety validation: %s. Using deterministic fallback.", val_res.rejection_reasons)
         except Exception as exc:
             logger.warning(
                 "LLM generation unavailable or failed (%s). Falling back to deterministic advisory.",
                 exc,
             )
 
-        # Deterministic fallback if LLM is unavailable or empty
+        # Deterministic fallback if LLM is unavailable, invalid, or empty
         if not summary:
             is_llm_generated = False
             if target_lang == "kn":
@@ -638,20 +767,206 @@ class FarmerAdvisoryService:
                 else:
                     summary = f"No adverse weather or acute disease risks currently detected for {crop_name_en}. Continue routine farm operations."
 
+        # 15. Derive evidence-based confidence deterministically
+        has_weather_data = bool(weather_metrics is not None)
+        has_rules_matched = bool(len(weather_advisories) > 0)
+        diag_conf = float(latest_diagnosis.confidence) if (latest_diagnosis and latest_diagnosis.confidence is not None) else None
+        confidence_level, confidence_level_kn = AdvisoryValidator.calculate_confidence(
+            has_weather_data=has_weather_data,
+            has_rules_matched=has_rules_matched,
+            diagnosis_confidence=diag_conf,
+        )
+
+        # 16. Build structured actions list
+        actions_list: List[AdvisoryActionItem] = []
+        for i, act_str in enumerate(recommended_actions):
+            act_prio = 1 if severity in ("CRITICAL", "HIGH") else (2 if severity == "MODERATE" else 3)
+            time_window = "ಮುಂದಿನ 24-48 ಗಂಟೆಗಳು" if target_lang == "kn" else "Next 24-48 hours"
+            actions_list.append(
+                AdvisoryActionItem(
+                    action_kn=act_str,
+                    action_en=act_str,
+                    priority=act_prio,
+                    time_window=time_window,
+                    category="SAFETY" if severity in ("CRITICAL", "HIGH") else "ACTIVITY",
+                )
+            )
+
+        # 17. Structured 5-part Kannada summary for farmer clarity
+        summary_kn = AdvisoryValidator.generate_deterministic_kannada_summary(
+            crop_name_kn=crop_name_kn,
+            risk_name=weather_advisories[0].risk_name if weather_advisories else "ಸಾಮಾನ್ಯ ಸ್ಥಿತಿ",
+            risk_level=severity,
+            reasons=reasons_list,
+            actions=recommended_actions,
+            time_window="ಮುಂದಿನ 24-48 ಗಂಟೆಗಳು",
+            confidence_kn=confidence_level_kn,
+        )
+        title_kn = f"{crop_name_kn} - ಸಲಹೆ ({farmer_name})"
+
+        # 18. Compile traceable evidence records
+        evidence_items: List[Dict[str, Any]] = []
+        if weather_dict:
+            evidence_items.append({
+                "type": "weather",
+                "source": sources[0] if sources else "WeatherProvider",
+                "observed_at": weather_observed_at.isoformat() if weather_observed_at else None,
+                "metrics": weather_dict,
+            })
+        for adv in weather_advisories:
+            evidence_items.append({
+                "type": "rule",
+                "rule_id": adv.provenance.rule_id if adv.provenance else None,
+                "risk_name": adv.risk_name,
+                "risk_level": adv.risk_level,
+                "source": adv.source_name,
+            })
+        if latest_diagnosis:
+            evidence_items.append({
+                "type": "disease",
+                "model": latest_diagnosis.model_name,
+                "predicted_class": latest_diagnosis.predicted_class,
+                "confidence": float(latest_diagnosis.confidence) if latest_diagnosis.confidence is not None else None,
+                "diagnosed_at": latest_diagnosis.created_at.isoformat() if latest_diagnosis.created_at else None,
+            })
+
+        # 19. Database persistence & superseding
+        advisory_id_val = uuid.uuid4()
+        valid_until_dt = forecast_valid_until or (now_utc + timedelta(hours=48))
+
+        try:
+            # Supersede prior active advisories for this farmer & crop
+            db.query(FarmerAdvisory).filter(
+                FarmerAdvisory.farmer_id == farmer_id,
+                FarmerAdvisory.crop_code == crop_code,
+                FarmerAdvisory.status == "ACTIVE",
+            ).update({"status": "SUPERSEDED"}, synchronize_session=False)
+
+            advisory_rec = FarmerAdvisory(
+                id=advisory_id_val,
+                farmer_id=farmer_id,
+                crop_id=farmer_crop.id if farmer_crop else None,
+                crop_code=crop_code,
+                village_id=farmer.village_id,
+                risk_level=severity,
+                title=title,
+                title_kn=title_kn,
+                summary=summary,
+                summary_kn=summary_kn,
+                reason=reason_str,
+                recommended_actions=recommended_actions,
+                structured_actions=[a.model_dump() if hasattr(a, "model_dump") else a.dict() for a in actions_list],
+                evidence=evidence_items,
+                confidence_level=confidence_level,
+                status="ACTIVE",
+                fingerprint=fingerprint,
+                is_llm_generated=is_llm_generated,
+                valid_from=now_utc,
+                valid_until=valid_until_dt,
+                weather_observed_at=weather_observed_at,
+            )
+            db.add(advisory_rec)
+            db.commit()
+        except Exception as db_exc:
+            logger.debug("Advisory DB persistence skipped or degraded: %s", db_exc)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         return FarmerComprehensiveAdvisoryResponse(
+            advisory_id=str(advisory_id_val),
             title=title,
+            title_kn=title_kn,
             severity=severity,
+            risk_level=severity,
             summary=summary,
+            summary_kn=summary_kn,
             reason=reason_str,
             recommended_actions=recommended_actions,
+            actions=actions_list,
+            crop=AdvisoryCropContext(
+                id=str(farmer_crop.id) if farmer_crop else None,
+                code=crop_code,
+                name_en=crop_name_en,
+                name_kn=crop_name_kn,
+                area_acres=float(farmer_crop.area_acres) if (farmer_crop and farmer_crop.area_acres is not None) else None,
+            ),
+            location=AdvisoryLocationContext(
+                village_id=farmer.village_id,
+                name=village_obj.name if village_obj else (farmer.village_id or "Unknown"),
+                name_kn=village_obj.name if village_obj else None,
+                district=village_obj.district if village_obj else None,
+                state=village_obj.state if village_obj else None,
+            ),
             language=target_lang,
             sources=sources,
             provenance=provenance,
             is_llm_generated=is_llm_generated,
             generated_at=now_utc,
+            valid_from=now_utc,
+            valid_until=valid_until_dt,
             weather_observed_at=weather_observed_at,
             forecast_valid_until=forecast_valid_until,
+            confidence_level=confidence_level,
+            confidence_level_kn=confidence_level_kn,
+            status="ACTIVE",
+            evidence=evidence_items,
         )
+
+    def get_active_advisory(
+        self,
+        db: Session,
+        farmer_id: uuid.UUID,
+        crop_id: Optional[uuid.UUID] = None,
+        language: Optional[Literal["en", "kn"]] = None,
+    ) -> FarmerComprehensiveAdvisoryResponse:
+        """Fetch current active advisory for farmer, generating on-demand if none exists."""
+        return self.get_comprehensive_advisory(
+            db=db,
+            farmer_id=farmer_id,
+            crop_id=crop_id,
+            language=language,
+            force_refresh=False,
+        )
+
+    def get_advisories_history(
+        self,
+        db: Session,
+        farmer_id: uuid.UUID,
+        limit: int = 10,
+    ) -> FarmerAdvisoriesListResponse:
+        """Retrieve historical advisories for a given farmer."""
+        farmer = db.get(UserProfile, farmer_id)
+        if farmer is None:
+            raise FarmerNotFoundError(f"Farmer with ID '{farmer_id}' not found.")
+
+        target_lang = farmer.language if farmer.language in ("en", "kn") else "kn"
+        records = (
+            db.query(FarmerAdvisory)
+            .filter(FarmerAdvisory.farmer_id == farmer_id)
+            .order_by(FarmerAdvisory.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        resp_list = [self._model_to_response(r, target_lang=target_lang) for r in records]
+        return FarmerAdvisoriesListResponse(
+            farmer_id=farmer_id,
+            advisories=resp_list,
+            total=len(resp_list),
+        )
+
+    def get_advisory_by_id(
+        self,
+        db: Session,
+        advisory_id: uuid.UUID,
+    ) -> Optional[FarmerComprehensiveAdvisoryResponse]:
+        """Fetch a specific advisory by primary key UUID."""
+        record = db.get(FarmerAdvisory, advisory_id)
+        if record is None:
+            return None
+        return self._model_to_response(record, target_lang="kn")
 
 
 def get_farmer_advisory_service() -> FarmerAdvisoryService:

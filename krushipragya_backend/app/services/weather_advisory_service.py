@@ -66,7 +66,25 @@ def get_weather_advisory_bundle(
         CropNotFoundError: When crop is not found in crops table.
     """
     # 1. Authoritative Village lookup
-    village = db.get(Village, village_id.strip())
+    clean_id = village_id.strip()
+    village = db.get(Village, clean_id)
+    if not village:
+        aliases = {
+            "v1": "V002",
+            "v2": "V001",
+            "v3": "V004",
+            "v4": "V003",
+            "v5": "V005",
+            "v6": "V006",
+            "ujire": "V001",
+            "brahmavar": "V002",
+            "thirthahalli": "V004",
+            "sirsi": "V003",
+            "koppa": "V005",
+            "madikeri": "V006",
+        }
+        target_id = aliases.get(clean_id.lower()) or clean_id.upper()
+        village = db.get(Village, target_id)
     if not village:
         logger.warning("Advisory lookup failed: Village '%s' not found.", village_id)
         raise VillageNotFoundError(f"Village '{village_id}' not found.")

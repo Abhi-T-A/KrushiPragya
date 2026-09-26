@@ -14,6 +14,7 @@ from app.main import app
 from app.models.crop import Crop
 from app.models.crop_report import CropReport
 from app.models.crop_report_diagnosis import CropReportDiagnosis
+from app.models.farmer_advisory import FarmerAdvisory
 from app.models.farmer_crop import FarmerCrop
 from app.models.user_profile import UserProfile
 from app.models.village import Village
@@ -84,6 +85,7 @@ def sqlite_session():
             FarmerCrop.__table__,
             CropReport.__table__,
             CropReportDiagnosis.__table__,
+            FarmerAdvisory.__table__,
         ],
     )
     with Session(engine) as session:

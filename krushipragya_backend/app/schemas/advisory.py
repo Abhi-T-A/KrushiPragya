@@ -106,6 +106,36 @@ class StructuredAdvisoryContext:
         return "\n".join(facts)
 
 
+class AdvisoryActionItem(BaseModel):
+    """Structured actionable farming step with deterministic priority and timing."""
+
+    action_kn: str = Field(..., description="Actionable recommendation in farmer-friendly Kannada")
+    action_en: Optional[str] = Field(default=None, description="Actionable recommendation in English")
+    priority: int = Field(default=1, description="Deterministic priority (1=Critical/Safety, 2=High, 3=Medium, 4=Routine)")
+    time_window: str = Field(default="ಮುಂದಿನ 24-48 ಗಂಟೆಗಳು", description="Time window for action (e.g. Next 24-48 hours)")
+    category: Optional[str] = Field(default="ACTIVITY", description="Action category: SAFETY, WEATHER, PROTECTION, ACTIVITY, GENERAL")
+
+
+class AdvisoryCropContext(BaseModel):
+    """Crop context information associated with an advisory."""
+
+    id: Optional[str] = Field(default=None, description="Farmer crop ID if available")
+    code: str = Field(..., description="Crop code (e.g. arecanut, paddy)")
+    name_en: str = Field(..., description="Crop name in English")
+    name_kn: str = Field(..., description="Crop name in Kannada")
+    area_acres: Optional[float] = Field(default=None, description="Cultivated land area in acres")
+
+
+class AdvisoryLocationContext(BaseModel):
+    """Geographic location context for an advisory."""
+
+    village_id: Optional[str] = Field(default=None, description="Village identifier")
+    name: str = Field(..., description="Village or location name in English")
+    name_kn: Optional[str] = Field(default=None, description="Village or location name in Kannada")
+    district: Optional[str] = Field(default=None, description="District name")
+    state: Optional[str] = Field(default=None, description="State name")
+
+
 class FarmerAdvisoryRequest(BaseModel):
     """Optional request payload for generating comprehensive farmer advisory."""
 
@@ -116,6 +146,10 @@ class FarmerAdvisoryRequest(BaseModel):
     language: Optional[Literal["en", "kn"]] = Field(
         default=None,
         description="Optional presentation language ('en' or 'kn'). Defaults to farmer's preference.",
+    )
+    force_refresh: bool = Field(
+        default=False,
+        description="If True, bypasses cache and forces re-evaluation of advisory",
     )
 
 
@@ -130,7 +164,7 @@ class FarmerComprehensiveAdvisoryResponse(BaseModel):
     )
     severity: str = Field(
         ...,
-        description="Overall risk severity: LOW, MODERATE, HIGH, or INFO",
+        description="Overall risk severity: CRITICAL, HIGH, MODERATE, LOW, or INFO",
     )
     summary: str = Field(
         ...,
@@ -172,3 +206,68 @@ class FarmerComprehensiveAdvisoryResponse(BaseModel):
         default=None,
         description="UTC timestamp until which the forecast metrics are valid",
     )
+
+    # Production extensions (with defaults for backwards compatibility)
+    advisory_id: Optional[str] = Field(
+        default=None,
+        description="Unique UUID identifier for this advisory record",
+    )
+    crop: Optional[AdvisoryCropContext] = Field(
+        default=None,
+        description="Target crop context information",
+    )
+    location: Optional[AdvisoryLocationContext] = Field(
+        default=None,
+        description="Geographic location context",
+    )
+    risk_level: Optional[str] = Field(
+        default=None,
+        description="Authoritative risk severity: CRITICAL, HIGH, MODERATE, LOW, INFO",
+    )
+    title_kn: Optional[str] = Field(
+        default=None,
+        description="Farmer-friendly Kannada title (e.g. ಸಲಹೆ - ಅಡಿಕೆ)",
+    )
+    summary_kn: Optional[str] = Field(
+        default=None,
+        description="Kannada summary answering the 5 farmer questions",
+    )
+    actions: List[AdvisoryActionItem] = Field(
+        default_factory=list,
+        description="Structured list of approved action items with priorities and time windows",
+    )
+    valid_from: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp from which the advisory is active",
+    )
+    valid_until: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp until which the advisory is active",
+    )
+    confidence_level: str = Field(
+        default="HIGH",
+        description="Authoritative evidence confidence: HIGH, MEDIUM, LOW, INSUFFICIENT_DATA",
+    )
+    confidence_level_kn: str = Field(
+        default="ಹೆಚ್ಚು",
+        description="Kannada confidence representation: ಹೆಚ್ಚು, ಮಧ್ಯಮ, ಕಡಿಮೆ, ಸಾಕಷ್ಟು ಮಾಹಿತಿಯಿಲ್ಲ",
+    )
+    status: str = Field(
+        default="ACTIVE",
+        description="Lifecycle status: ACTIVE, EXPIRED, SUPERSEDED",
+    )
+    evidence: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Traceable provenance audit trail of rules, weather, and diagnoses",
+    )
+
+
+class FarmerAdvisoriesListResponse(BaseModel):
+    """List response for farmer active advisories or history."""
+
+    farmer_id: uuid.UUID = Field(..., description="Farmer identifier")
+    advisories: List[FarmerComprehensiveAdvisoryResponse] = Field(
+        default_factory=list,
+        description="List of farmer advisories",
+    )
+    total: int = Field(default=0, description="Total count of advisories returned")

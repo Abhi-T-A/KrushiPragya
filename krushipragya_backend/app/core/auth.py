@@ -3,7 +3,7 @@ import logging
 from typing import Callable, List, Optional
 import uuid
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
@@ -36,12 +36,14 @@ class AuthenticatedUser(BaseModel):
 
 
 def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> AuthenticatedUser:
-    """Validate Supabase JWT and resolve authenticated user identity and roles.
+    """Validate Supabase JWT or resolve farmer identity via phone/ID header.
 
     Args:
+        request: FastAPI HTTP request to inspect headers.
         credentials: Bearer token from the Authorization header.
         db: Active database session.
 
@@ -49,62 +51,118 @@ def get_current_user(
         AuthenticatedUser: The validated user with assigned role codes.
 
     Raises:
-        HTTPException(401): If Bearer token is missing, invalid, or expired.
+        HTTPException(401): If Bearer token is missing, invalid, or expired and no farmer identity header is present.
     """
-    if credentials is None or not credentials.credentials:
-        logger.warning("Unauthenticated request: missing Bearer token in Authorization header.")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Please provide a valid Bearer token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    if credentials is not None and credentials.credentials:
+        token = credentials.credentials
+        payload = decode_supabase_jwt(token)
 
-    token = credentials.credentials
-    payload = decode_supabase_jwt(token)
-
-    # Supabase standard subject claim stores user UUID
-    sub = payload.get("sub") or payload.get("user_id")
-    if not sub:
-        logger.warning("Invalid token payload: missing 'sub' claim.")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload: missing subject identifier",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    try:
-        user_uuid = uuid.UUID(str(sub))
-    except (ValueError, TypeError) as exc:
-        logger.warning("Invalid user ID UUID format in token.")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user ID format in token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-    # Query active role codes from the source-of-truth user_roles table
-    try:
-        role_rows = (
-            db.query(UserRole.role_code)
-            .filter(
-                UserRole.user_id == user_uuid,
-                UserRole.status == "ACTIVE",
+        # Supabase standard subject claim stores user UUID
+        sub = payload.get("sub") or payload.get("user_id")
+        if not sub:
+            logger.warning("Invalid token payload: missing 'sub' claim.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload: missing subject identifier",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-            .all()
+
+        try:
+            user_uuid = uuid.UUID(str(sub))
+        except (ValueError, TypeError) as exc:
+            logger.warning("Invalid user ID UUID format in token.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user ID format in token",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from exc
+
+        # Query active role codes from the source-of-truth user_roles table
+        try:
+            role_rows = (
+                db.query(UserRole.role_code)
+                .filter(
+                    UserRole.user_id == user_uuid,
+                    UserRole.status == "ACTIVE",
+                )
+                .all()
+            )
+            assigned_roles = [r[0] for r in role_rows]
+        except Exception as exc:
+            logger.error("Failed to query user roles from database for %s: %s", user_uuid, exc, exc_info=True)
+            assigned_roles = []
+
+        email = payload.get("email")
+
+        return AuthenticatedUser(
+            id=user_uuid,
+            email=email,
+            roles=assigned_roles,
+            is_active=True,
         )
-        assigned_roles = [r[0] for r in role_rows]
-    except Exception as exc:
-        logger.error("Failed to query user roles from database for %s: %s", user_uuid, exc, exc_info=True)
-        # If DB query fails, treat as empty roles
-        assigned_roles = []
 
-    email = payload.get("email")
+    # Phone or farmer-id fallback for phone-first authentication flow
+    phone_header = request.headers.get("x-farmer-phone") or request.headers.get("x-phone")
+    farmer_id_header = request.headers.get("x-farmer-id")
 
-    return AuthenticatedUser(
-        id=user_uuid,
-        email=email,
-        roles=assigned_roles,
-        is_active=True,
+    if phone_header:
+        clean_phone = phone_header.replace("+91", "").replace(" ", "").replace("-", "").strip()
+        profile = (
+            db.query(UserProfile)
+            .filter(
+                (UserProfile.phone == phone_header)
+                | (UserProfile.phone == clean_phone)
+                | (UserProfile.phone.endswith(clean_phone))
+            )
+            .first()
+        )
+        if profile:
+            try:
+                role_rows = (
+                    db.query(UserRole.role_code)
+                    .filter(UserRole.user_id == profile.id, UserRole.status == "ACTIVE")
+                    .all()
+                )
+                assigned_roles = [r[0] for r in role_rows] or ["FARMER"]
+            except Exception:
+                assigned_roles = ["FARMER"]
+
+            return AuthenticatedUser(
+                id=profile.id,
+                email=f"{profile.phone}@krushipragya.in",
+                roles=assigned_roles,
+                is_active=True,
+            )
+
+    if farmer_id_header:
+        try:
+            f_uuid = uuid.UUID(farmer_id_header)
+            profile = db.get(UserProfile, f_uuid)
+            if profile:
+                try:
+                    role_rows = (
+                        db.query(UserRole.role_code)
+                        .filter(UserRole.user_id == profile.id, UserRole.status == "ACTIVE")
+                        .all()
+                    )
+                    assigned_roles = [r[0] for r in role_rows] or ["FARMER"]
+                except Exception:
+                    assigned_roles = ["FARMER"]
+
+                return AuthenticatedUser(
+                    id=profile.id,
+                    email=f"{profile.phone or str(profile.id)}@krushipragya.in",
+                    roles=assigned_roles,
+                    is_active=True,
+                )
+        except Exception:
+            pass
+
+    logger.warning("Unauthenticated request: missing Bearer token or farmer identity header in Authorization.")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required. Please provide a valid Bearer token or farmer identity.",
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 
@@ -192,13 +250,12 @@ def verify_farmer_access(
 
 
 def get_optional_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> Optional[AuthenticatedUser]:
     """Resolve authenticated user if Bearer token is provided, or return None if unauthenticated."""
-    if credentials is None or not credentials.credentials:
-        return None
     try:
-        return get_current_user(credentials=credentials, db=db)
+        return get_current_user(request=request, credentials=credentials, db=db)
     except Exception:
         return None

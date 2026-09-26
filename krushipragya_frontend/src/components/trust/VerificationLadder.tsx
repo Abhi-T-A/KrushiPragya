@@ -44,7 +44,8 @@ export const VerificationLadder: React.FC<VerificationLadderProps> = ({
   ];
 
   const getStageIndex = (s: LadderStatus) => {
-    switch (s) {
+    const normalized = (s || '').toLowerCase();
+    switch (normalized) {
       case 'unverified':
         return 0;
       case 'ai_analysed':

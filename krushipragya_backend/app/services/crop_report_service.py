@@ -191,14 +191,14 @@ class CropReportService:
         self,
         db: Session,
         farmer_id: uuid.UUID,
-        farmer_crop_id: uuid.UUID,
+        farmer_crop_id: Optional[uuid.UUID] = None,
     ) -> List[CropReport]:
-        """List all crop reports for a given farmer crop in newest-first order.
+        """List all crop reports for a given farmer crop or all farmer crops in newest-first order.
 
         Args:
             db: SQLAlchemy session
             farmer_id: UUID of the requesting farmer
-            farmer_crop_id: UUID of the farmer-crop relationship
+            farmer_crop_id: Optional UUID of the farmer-crop relationship
 
         Returns:
             List[CropReport]: List of CropReport instances ordered by created_at descending
@@ -213,35 +213,41 @@ class CropReportService:
             logger.warning("Farmer not found for ID: %s", farmer_id)
             raise FarmerNotFoundError(f"Farmer with ID '{farmer_id}' not found.")
 
-        # 2. Verify farmer crop exists and belongs to farmer
-        farmer_crop = (
-            db.query(FarmerCrop)
-            .filter(
-                FarmerCrop.id == farmer_crop_id,
-                FarmerCrop.farmer_id == farmer_id,
+        # 2. If farmer_crop_id is provided, verify farmer crop exists and belongs to farmer
+        if farmer_crop_id is not None:
+            farmer_crop = (
+                db.query(FarmerCrop)
+                .filter(
+                    FarmerCrop.id == farmer_crop_id,
+                    FarmerCrop.farmer_id == farmer_id,
+                )
+                .first()
             )
-            .first()
-        )
-        if farmer_crop is None:
-            logger.warning(
-                "FarmerCrop %s not found or does not belong to farmer %s",
-                farmer_crop_id,
-                farmer_id,
-            )
-            raise FarmerCropNotFoundError(
-                f"Farmer crop with ID '{farmer_crop_id}' not found for farmer '{farmer_id}'."
-            )
+            if farmer_crop is None:
+                logger.warning(
+                    "FarmerCrop %s not found or does not belong to farmer %s",
+                    farmer_crop_id,
+                    farmer_id,
+                )
+                raise FarmerCropNotFoundError(
+                    f"Farmer crop with ID '{farmer_crop_id}' not found for farmer '{farmer_id}'."
+                )
 
-        # 3, 4 & 5. Return all crop reports ordered newest first
-        return (
+        # 3. Return crop reports ordered newest first
+        query = (
             db.query(CropReport)
             .options(
                 selectinload(CropReport.farmer_crop).selectinload(FarmerCrop.crop)
             )
-            .filter(CropReport.farmer_crop_id == farmer_crop_id)
-            .order_by(CropReport.created_at.desc())
-            .all()
         )
+        if farmer_crop_id is not None:
+            query = query.filter(CropReport.farmer_crop_id == farmer_crop_id)
+        else:
+            query = query.join(FarmerCrop, CropReport.farmer_crop_id == FarmerCrop.id).filter(
+                FarmerCrop.farmer_id == farmer_id
+            )
+
+        return query.order_by(CropReport.created_at.desc()).all()
 
     def update_crop_report(
         self,

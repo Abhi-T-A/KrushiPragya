@@ -1,6 +1,7 @@
 """API endpoints for Farmer Profile management."""
 import logging
 import uuid
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.schemas.farmer import (
     FarmerProfileCreate,
     FarmerProfileResponse,
     FarmerProfileUpdate,
+    VillageResponse,
 )
 from app.services.farmer_profile_service import (
     FarmerProfileAlreadyExistsError,
@@ -20,11 +22,34 @@ from app.services.farmer_profile_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/farmers", tags=["Farmers"])
+villages_router = APIRouter(tags=["Villages"])
 
 
 def get_farmer_profile_service() -> FarmerProfileService:
     """Dependency provider for FarmerProfileService."""
     return FarmerProfileService()
+
+
+@router.get(
+    "/villages",
+    response_model=List[VillageResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List canonical villages",
+    description="Returns all canonical villages registered in KrushiPragya.",
+)
+@villages_router.get(
+    "/villages",
+    response_model=List[VillageResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List canonical villages",
+    description="Returns all canonical villages registered in KrushiPragya.",
+)
+def list_canonical_villages(
+    db: Session = Depends(get_db),
+    service: FarmerProfileService = Depends(get_farmer_profile_service),
+) -> List[VillageResponse]:
+    """Retrieve all canonical villages for profile selection."""
+    return service.list_villages(db=db)
 
 
 @router.post(
@@ -126,3 +151,39 @@ def update_farmer_profile(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Farmer profile not found",
         ) from exc
+
+
+@router.get(
+    "/by-phone/{phone_number}",
+    response_model=FarmerProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve farmer profile by phone number",
+    description="Look up registered farmer profile by phone number for the phone-first authentication flow.",
+    responses={
+        200: {"description": "Farmer profile retrieved successfully"},
+        404: {"description": "Farmer profile not found for phone number"},
+    },
+)
+def get_farmer_by_phone(
+    phone_number: str,
+    db: Session = Depends(get_db),
+    service: FarmerProfileService = Depends(get_farmer_profile_service),
+) -> FarmerProfileResponse:
+    """Retrieve a farmer profile by phone number."""
+    from app.models.user_profile import UserProfile
+    clean = phone_number.replace("+91", "").replace(" ", "").replace("-", "").strip()
+    profile = (
+        db.query(UserProfile)
+        .filter(
+            (UserProfile.phone == phone_number)
+            | (UserProfile.phone == clean)
+            | (UserProfile.phone.endswith(clean))
+        )
+        .first()
+    )
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Farmer profile not found for phone number '{phone_number}'.",
+        )
+    return FarmerProfileResponse.model_validate(profile)

@@ -180,3 +180,10 @@ class FarmerProfileService:
         except Exception:
             db.rollback()
             raise
+
+    def list_villages(self, db: Session):
+        """Retrieve all canonical villages from the catalog."""
+        from app.models.village import Village
+        if hasattr(db, "query"):
+            return db.query(Village).order_by(Village.id).all()
+        return []

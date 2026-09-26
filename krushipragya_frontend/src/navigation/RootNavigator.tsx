@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -22,11 +22,16 @@ import { WeatherScreen } from '../screens/weather/WeatherScreen';
 import { MarketScreen } from '../screens/market/MarketScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 
+// Government Schemes Screens
+import { SchemesHomeScreen } from '../screens/schemes/SchemesHomeScreen';
+import { SchemeDetailsScreen } from '../screens/schemes/SchemeDetailsScreen';
+import { SavedSchemesScreen } from '../screens/schemes/SavedSchemesScreen';
+
 // Icons
 import {
   Home as HomeIcon,
   Camera as CameraIcon,
-  ClipboardList as HistoryIcon,
+  Landmark as SchemesIcon,
   CloudSun as WeatherIcon,
   TrendingUp as MarketIcon,
 } from 'lucide-react-native';
@@ -42,16 +47,18 @@ const ReportStackNavigator = () => {
       <Stack.Screen name="CameraCapture" component={CameraCaptureScreen} />
       <Stack.Screen name="PreviewSubmit" component={PreviewSubmitScreen} />
       <Stack.Screen name="AIResult" component={AIResultScreen} />
+      <Stack.Screen name="ReportList" component={ReportListScreen} />
     </Stack.Navigator>
   );
 };
 
-// Nested History Stack
-const HistoryStackNavigator = () => {
+// Nested Schemes Stack (Government Schemes / ಯೋಜನೆಗಳು)
+const SchemesStackNavigator = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ReportList" component={ReportListScreen} />
-      <Stack.Screen name="AIResult" component={AIResultScreen} />
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="SchemesHome">
+      <Stack.Screen name="SchemesHome" component={SchemesHomeScreen} />
+      <Stack.Screen name="SchemeDetails" component={SchemeDetailsScreen} />
+      <Stack.Screen name="SavedSchemes" component={SavedSchemesScreen} />
     </Stack.Navigator>
   );
 };
@@ -86,85 +93,86 @@ const BottomTabs = () => {
       initialRouteName="HomeTab"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarActiveTintColor: '#114B32',
+        tabBarInactiveTintColor: '#4B5563',
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          borderTopWidth: 1.5,
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#E5E7EB',
+          borderTopWidth: 1,
           height: 64,
           paddingBottom: 8,
           paddingTop: 6,
-          elevation: 8,
+          elevation: 6,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 6,
+          shadowOpacity: 0.05,
+          shadowRadius: 5,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '700',
+          fontWeight: '600',
+          marginTop: 2,
         },
       }}
     >
-      {/* 1. Dynamic Home Tab (Adapts to Active Role) */}
+      {/* 1. Home Tab */}
       <Tab.Screen
         name="HomeTab"
         component={DynamicHomeScreen}
         options={{
           tabBarLabel: isKn ? 'ಮುಖಪುಟ' : 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <HomeIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
+            <HomeIcon size={20} color={color} strokeWidth={focused ? 2.3 : 1.8} />
           ),
         }}
       />
 
-      {/* 2. Crop Health & AI Scan Tab */}
-      <Tab.Screen
-        name="ReportTab"
-        component={ReportStackNavigator}
-        options={{
-          tabBarLabel: isKn ? 'ರೋಗ ತಪಾಸಣೆ' : 'AI Health',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeCamCircle : styles.camCircle}>
-              <CameraIcon size={20} color={focused ? '#FFFFFF' : Colors.primary} strokeWidth={2.4} />
-            </View>
-          ),
-        }}
-      />
-
-      {/* 3. History & Evidence Ladder Tab */}
-      <Tab.Screen
-        name="HistoryTab"
-        component={HistoryStackNavigator}
-        options={{
-          tabBarLabel: isKn ? 'ಇತಿಹಾಸ' : 'Reports',
-          tabBarIcon: ({ color, focused }) => (
-            <HistoryIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
-          ),
-        }}
-      />
-
-      {/* 4. Weather & Spray Advisory Tab */}
-      <Tab.Screen
-        name="WeatherTab"
-        component={WeatherScreen}
-        options={{
-          tabBarLabel: isKn ? 'ಹವಾಮಾನ' : 'Weather',
-          tabBarIcon: ({ color, focused }) => (
-            <WeatherIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
-          ),
-        }}
-      />
-
-      {/* 5. Market & Schemes Tab */}
+      {/* 2. Market Tab */}
       <Tab.Screen
         name="MarketTab"
         component={MarketScreen}
         options={{
           tabBarLabel: isKn ? 'ಮಾರುಕಟ್ಟೆ' : 'Market',
           tabBarIcon: ({ color, focused }) => (
-            <MarketIcon size={focused ? 22 : 20} color={color} strokeWidth={focused ? 2.5 : 2} />
+            <MarketIcon size={20} color={color} strokeWidth={focused ? 2.3 : 1.8} />
+          ),
+        }}
+      />
+
+      {/* 3. Crop Health & AI Scan Tab (Center) */}
+      <Tab.Screen
+        name="ReportTab"
+        component={ReportStackNavigator}
+        options={{
+          tabBarLabel: isKn ? 'ಬೆಳೆ ಆರೋಗ್ಯ' : 'Crop Health',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeCamPill : styles.camPill}>
+              <CameraIcon size={19} color={focused ? '#114B32' : '#4B5563'} strokeWidth={focused ? 2.3 : 1.8} />
+            </View>
+          ),
+        }}
+      />
+
+      {/* 4. Weather & Advisory Tab */}
+      <Tab.Screen
+        name="WeatherTab"
+        component={WeatherScreen}
+        options={{
+          tabBarLabel: isKn ? 'ಸಲಹೆ' : 'Advisory',
+          tabBarIcon: ({ color, focused }) => (
+            <WeatherIcon size={20} color={color} strokeWidth={focused ? 2.3 : 1.8} />
+          ),
+        }}
+      />
+
+      {/* 5. Government Schemes Tab */}
+      <Tab.Screen
+        name="SchemesTab"
+        component={SchemesStackNavigator}
+        options={{
+          tabBarLabel: isKn ? 'ಯೋಜನೆಗಳು' : 'Schemes',
+          tabBarIcon: ({ color, focused }) => (
+            <SchemesIcon size={20} color={color} strokeWidth={focused ? 2.3 : 1.8} />
           ),
         }}
       />
@@ -178,24 +186,24 @@ export const RootNavigator = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={BottomTabs} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="HistoryTab" component={SchemesStackNavigator} />
     </Stack.Navigator>
   );
 };
 
 const styles = StyleSheet.create({
-  camCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primaryLight,
+  camPill: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activeCamCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primary,
+  activeCamPill: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EAF7EE',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -20,6 +20,7 @@ def legacy_auth_compatibility(request):
         "test_rbac" in request.node.nodeid
         or "test_market" in request.node.nodeid
         or "test_verification" in request.node.nodeid
+        or "test_farmer_onboarding" in request.node.nodeid
     ):
         yield
         return

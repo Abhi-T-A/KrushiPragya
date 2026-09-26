@@ -1,11 +1,11 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
-import { MapPin, Globe2, User } from 'lucide-react-native';
+import { MapPin, Globe2, User, Sprout } from 'lucide-react-native';
 
 export const Header: React.FC<{
   title?: string;
@@ -25,33 +25,58 @@ export const Header: React.FC<{
         : user.villageName)
     : 'Ujire';
 
+  const isKn = language === 'kn';
+
   return (
     <View style={[styles.wrapper, { paddingTop: Math.max(insets.top, 10) + Spacing.xs }]}>
       <View style={styles.topRow}>
-        {/* Clean Location Badge */}
-        {showVillage && (
-          <View style={styles.villageContainer}>
-            <MapPin size={14} color={Colors.primary} />
-            <Text style={styles.villageText} numberOfLines={1}>
-              {villageDisplayName}
-            </Text>
+        {/* Left: App Logo & Village Identity (Matching Hand Sketch) */}
+        {!title ? (
+          <View style={styles.brandCol}>
+            <View style={styles.logoRow}>
+              <View style={styles.appLogoCircle}>
+                <Sprout size={18} color="#FFFFFF" strokeWidth={2.4} />
+              </View>
+              <View>
+                <Text style={styles.appTitle}>
+                  <Text style={{ color: '#166534' }}>Krushi</Text>
+                  <Text style={{ color: '#16A34A' }}>Pragya</Text>
+                </Text>
+                <View style={styles.villageInline}>
+                  <MapPin size={11} color={Colors.primary} />
+                  <Text style={styles.villageText} numberOfLines={1}>
+                    {villageDisplayName}
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
+        ) : (
+          showVillage && (
+            <View style={styles.villageContainer}>
+              <MapPin size={14} color={Colors.primary} />
+              <Text style={styles.villageText} numberOfLines={1}>
+                {villageDisplayName}
+              </Text>
+            </View>
+          )
         )}
 
+        {/* Right: Language Pill & Profile Button */}
         <View style={styles.rightActionsRow}>
           {/* Language Switcher Pill */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => setLanguage(language === 'kn' ? 'en' : 'kn')}
+            onPress={() => setLanguage(isKn ? 'en' : 'kn')}
             style={styles.langButton}
           >
             <Globe2 size={13} color={Colors.primaryDark} />
             <Text style={styles.langText}>
-              {language === 'kn' ? 'English' : 'ಕನ್ನಡ'}
+              {isKn ? 'English' : 'ಕನ್ನಡ'}
             </Text>
           </TouchableOpacity>
 
-          {/* Profile Avatar / Role Tag */}
+          {/* Profile Avatar Button */}
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => navigation.navigate('Profile')}
@@ -134,5 +159,38 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     paddingHorizontal: Spacing.md,
     marginTop: Spacing.xs,
+  },
+  brandCol: {
+    flex: 1,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  appLogoCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  appTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    lineHeight: 18,
+  },
+  villageInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
   },
 });

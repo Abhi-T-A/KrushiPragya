@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors, BorderRadius, Spacing, Typography } from '../../constants/theme';
 import { useLanguage } from '../../context/LanguageContext';
 
-export type LadderStatus = 'unverified' | 'ai_analysed' | 'corroborated' | 'expert_verified';
+export type LadderStatus = 'unverified' | 'ai_analysed' | 'corroborated' | 'expert_verified' | string;
 
 interface StatusBadgeProps {
   status: LadderStatus;
@@ -14,7 +14,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const { t } = useLanguage();
 
   const getBadgeConfig = () => {
-    switch (status) {
+    const normalized = (status || '').toLowerCase();
+    switch (normalized) {
       case 'unverified':
         return {
           label: t.trustUnverified,

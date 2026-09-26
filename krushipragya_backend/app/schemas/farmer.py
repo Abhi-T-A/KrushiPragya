@@ -130,3 +130,17 @@ class FarmerProfileResponse(BaseModel):
         ...,
         description="Timestamp of last profile update",
     )
+
+
+class VillageResponse(BaseModel):
+    """Schema representing a canonical village entity."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(..., description="Canonical village ID code, e.g. V001")
+    name: str = Field(..., description="Village name")
+    district: str = Field(..., description="District name")
+    state: str = Field(..., description="State name")
+    zone: str = Field(..., description="Agro-climatic zone")
+    latitude: float = Field(..., description="Latitude coordinate")
+    longitude: float = Field(..., description="Longitude coordinate")

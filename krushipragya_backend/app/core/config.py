@@ -52,6 +52,9 @@ class Settings(BaseSettings):
 
     # Supabase Storage Configuration
     SUPABASE_URL: Optional[str] = Field(default=None, description="Supabase project URL")
+    SUPABASE_ANON_KEY: Optional[str] = Field(
+        default=None, description="Supabase anonymous public key (client-safe)"
+    )
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(
         default=None, description="Supabase service role secret key (server-side only)"
     )

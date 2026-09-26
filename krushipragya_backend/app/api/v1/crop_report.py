@@ -1,6 +1,6 @@
 """API endpoints for Crop Report management."""
 import logging
-from typing import List
+from typing import List, Optional
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
@@ -87,9 +87,9 @@ def create_crop_report(
 )
 def list_crop_reports(
     farmer_id: uuid.UUID,
-    farmer_crop_id: uuid.UUID = Query(
-        ...,
-        description="UUID of the farmer crop relationship to list reports for",
+    farmer_crop_id: Optional[uuid.UUID] = Query(
+        default=None,
+        description="Optional UUID of the farmer crop relationship to list reports for",
     ),
     auth_user: AuthenticatedUser = Depends(verify_farmer_access),
     db: Session = Depends(get_db),

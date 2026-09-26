@@ -18,7 +18,13 @@ export const CameraCaptureScreen: React.FC<{ route: any; navigation: any }> = ({
   route,
   navigation,
 }) => {
-  const { crop } = route.params || { crop: 'arecanut' };
+  const {
+    crop = 'arecanut',
+    cropNameKn = 'ಅಡಿಕೆ',
+    cropNameEn = 'Arecanut',
+    farmerCropId,
+    farmerId,
+  } = route.params || {};
   const { t } = useLanguage();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -32,10 +38,10 @@ export const CameraCaptureScreen: React.FC<{ route: any; navigation: any }> = ({
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.85,
     });
 
-    if (!result.canceled && result.assets[0].uri) {
+    if (!result.canceled && result.assets && result.assets[0].uri) {
       setSelectedImage(result.assets[0].uri);
     }
   };
@@ -45,17 +51,24 @@ export const CameraCaptureScreen: React.FC<{ route: any; navigation: any }> = ({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.85,
     });
 
-    if (!result.canceled && result.assets[0].uri) {
+    if (!result.canceled && result.assets && result.assets[0].uri) {
       setSelectedImage(result.assets[0].uri);
     }
   };
 
   const handleProceed = () => {
     if (!selectedImage) return;
-    navigation.navigate('PreviewSubmit', { crop, imageUri: selectedImage });
+    navigation.navigate('PreviewSubmit', {
+      crop,
+      cropNameKn,
+      cropNameEn,
+      farmerCropId,
+      farmerId,
+      imageUri: selectedImage,
+    });
   };
 
   return (

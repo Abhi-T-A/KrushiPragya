@@ -8,8 +8,12 @@ export interface CropReport {
   predictedDisease?: string;
   predictedDiseaseKn?: string;
   scientificName?: string;
+  category?: string;
   confidence: number;
-  status: 'unverified' | 'ai_analysed' | 'corroborated' | 'expert_verified';
+  lowConfidence?: boolean;
+  inputVerified?: boolean;
+  reasonCode?: string;
+  status: 'unverified' | 'ai_analysed' | 'corroborated' | 'expert_verified' | 'UNVERIFIED' | 'AI_ANALYSED' | 'CORROBORATED' | 'EXPERT_VERIFIED';
   villageId: string;
   villageName: string;
   reporterRole: 'farmer' | 'village_node' | 'expert' | 'officer' | 'buyer' | 'community';
@@ -17,10 +21,20 @@ export interface CropReport {
   createdAt: string;
   remedyKn?: string;
   remedyEn?: string;
+  culturalControl?: string;
   sourceInstitution?: string;
   evidenceFarmsCount?: number;
   verifiedBy?: string;
   verifiedAt?: string;
+  backendReportId?: string;
+  farmerId?: string;
+  farmerCropId?: string;
+  predictions?: Array<{ class_name: string; confidence: number }>;
+  corroborationCount?: number;
+  contradictionCount?: number;
+  expertDecision?: string;
+  expertNotes?: string;
+  expertRequested?: boolean;
 }
 
 export interface WeatherRisk {

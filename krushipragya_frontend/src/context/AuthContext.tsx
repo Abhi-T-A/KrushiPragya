@@ -1,8 +1,9 @@
-﻿import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 export type UserRole = 'farmer' | 'expert' | 'officer' | 'buyer' | 'community' | 'village_node';
 
 export interface UserProfile {
+  id: string;
   name: string;
   nameKn: string;
   phone: string;
@@ -19,9 +20,10 @@ export interface UserProfile {
 
 export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   farmer: {
+    id: '11111111-1111-4111-8111-111111111111',
     name: 'Mallikarjuna Gowda',
     nameKn: 'ಮಲ್ಲಿಕಾರ್ಜುನ ಗೌಡ',
-    phone: '+91 98765 43210',
+    phone: '9876543210',
     role: 'farmer',
     roleTitleEn: 'Farmer',
     roleTitleKn: 'ಬೆಳೆಗಾರ / ರೈತ',
@@ -33,6 +35,7 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
     organization: 'Ujire Raitha Sangha',
   },
   expert: {
+    id: '11111111-1111-4111-8111-111111111112',
     name: 'Dr. Ramesh K (Agronomist)',
     nameKn: 'ಡಾ. ರಮೇಶ್ (ಕೃಷಿ ತಜ್ಞ)',
     phone: '+91 94481 23456',
@@ -45,6 +48,7 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
     organization: 'ICAR - Krishi Vigyan Kendra',
   },
   officer: {
+    id: '11111111-1111-4111-8111-111111111113',
     name: 'Sunitha IAS (Agri Dept)',
     nameKn: 'ಶ್ರೀಮತಿ ಸುನಿತಾ (ಕೃಷಿ ಅಧಿಕಾರಿ)',
     phone: '+91 98450 11223',
@@ -57,6 +61,7 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
     organization: 'Department of Agriculture, Govt of Karnataka',
   },
   buyer: {
+    id: '11111111-1111-4111-8111-111111111114',
     name: 'Rajesh Seth (APMC Merchant)',
     nameKn: 'ರಾಜೇಶ್ ಸೇಠ್ (ವರ್ತಕ)',
     phone: '+91 99001 88776',
@@ -69,6 +74,7 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
     organization: 'Karnataka APMC Trade Network',
   },
   community: {
+    id: '11111111-1111-4111-8111-111111111115',
     name: 'Suresh Gowda (FPO Lead)',
     nameKn: 'ಸುರೇಶ್ ಗೌಡ (ಗ್ರಾಮ ಸಮುದಾಯ)',
     phone: '+91 97312 34567',
@@ -81,6 +87,7 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
     organization: 'Ujire Farmers Producer Organization',
   },
   village_node: {
+    id: '11111111-1111-4111-8111-111111111115',
     name: 'Suresh Gowda (FPO Lead)',
     nameKn: 'ಸುರೇಶ್ ಗೌಡ (ಗ್ರಾಮ ಸಮುದಾಯ)',
     phone: '+91 97312 34567',

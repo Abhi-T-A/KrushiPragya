@@ -26,6 +26,7 @@ from app.schemas.farmer import (
     FarmerProfileCreate,
     FarmerProfileUpdate,
     FarmerProfileResponse,
+    VillageResponse,
 )
 from app.schemas.farmer_crop import (
     CropResponse,
@@ -94,6 +95,7 @@ __all__ = [
     "FarmerProfileCreate",
     "FarmerProfileUpdate",
     "FarmerProfileResponse",
+    "VillageResponse",
     "CropResponse",
     "FarmerCropCreate",
     "FarmerCropUpdate",

@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 from app.api.v1.health import router as health_router
 from app.api.v1.weather import router as weather_router
 from app.api.v1.disease import router as disease_router
-from app.api.v1.farmer import router as farmer_router
+from app.api.v1.farmer import router as farmer_router, villages_router
+from app.api.v1.auth import router as auth_router
 from app.api.v1.farmer_crop import router as farmer_crop_router
 from app.api.v1.crop_report import router as crop_report_router
 from app.api.v1.crop_report_diagnosis import router as crop_report_diagnosis_router
@@ -110,5 +111,7 @@ app.include_router(market_public_router, prefix="/api/v1")
 app.include_router(schemes_router, prefix="/api/v1")
 app.include_router(admin_schemes_router, prefix="/api/v1")
 app.include_router(verification_router, prefix="/api/v1")
+app.include_router(villages_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
 
 

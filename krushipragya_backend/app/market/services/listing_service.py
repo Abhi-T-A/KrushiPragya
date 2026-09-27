@@ -207,12 +207,31 @@ class ProduceListingService:
         if not price_and_market:
             return None
 
-        best_record, best_mandi = price_and_market[0]
+        def _extract_pair(item):
+            if isinstance(item, (tuple, list)):
+                return item[0], item[1]
+            if hasattr(item, "__getitem__"):
+                try:
+                    return item[0], item[1]
+                except Exception:
+                    pass
+            m = db.get(Market, item.market_id)
+            return item, m
+
+        best_record, best_mandi = _extract_pair(price_and_market[0])
+        if not best_mandi:
+            best_mandi = db.get(Market, best_record.market_id)
+        if not best_mandi:
+            return None
+
         min_dist: Optional[float] = None
 
         if farmer_lat is not None and farmer_lon is not None:
             closest_dist = float("inf")
-            for prec, mandi in price_and_market:
+            for item in price_and_market:
+                prec, mandi = _extract_pair(item)
+                if not mandi:
+                    continue
                 d = haversine_distance_km(farmer_lat, farmer_lon, mandi.latitude, mandi.longitude)
                 if d < closest_dist:
                     closest_dist = d

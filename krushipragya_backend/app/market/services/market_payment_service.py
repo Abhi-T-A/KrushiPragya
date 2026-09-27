@@ -33,25 +33,129 @@ class MarketPaymentService:
     async def create_payment_order(
         self,
         db: Session,
-        buyer_id: uuid.UUID,
+        user_id: uuid.UUID,
         payload: PaymentOrderCreateRequest,
+        user_roles: Optional[List[str]] = None,
     ) -> PaymentOrderResponse:
         """Create a server-side payment order for an accepted offer."""
         offer = db.get(BuyerOffer, payload.offer_id)
         if not offer:
             raise ValueError(f"Offer with ID '{payload.offer_id}' not found.")
 
-        if offer.buyer_id != buyer_id:
+        listing = db.get(ProduceListing, offer.listing_id)
+        if not listing:
+            raise ValueError("Produce listing associated with this offer not found.")
+
+        is_buyer = (offer.buyer_id == user_id)
+        is_farmer = (listing.farmer_id == user_id)
+        is_admin = bool(user_roles and "ADMIN" in user_roles)
+
+        if not (is_buyer or is_farmer or is_admin):
             raise PermissionError("Access forbidden: You do not own this offer.")
 
-        if offer.status != "ACCEPTED":
+        if offer.status not in ("ACCEPTED", "COMPLETED"):
             raise ValueError(
                 f"Cannot create payment order: Offer status is '{offer.status}'. Offer must be ACCEPTED first."
             )
 
-        listing = db.get(ProduceListing, offer.listing_id)
-        if not listing:
-            raise ValueError("Produce listing associated with this offer not found.")
+        if listing.status in ("DELISTED", "CANCELLED"):
+            raise ValueError(f"Cannot create payment order: Listing status is '{listing.status}'.")
+
+        existing_paid = (
+            db.query(MarketplaceTransaction)
+            .filter(
+                MarketplaceTransaction.offer_id == offer.id,
+                MarketplaceTransaction.payment_status.in_(["PAYMENT_SUCCESS", "PAID"]),
+            )
+            .first()
+        )
+        if existing_paid:
+            if payload.payment_mode == "DEMO":
+                return PaymentOrderResponse(
+                    transaction_id=existing_paid.id,
+                    offer_id=existing_paid.offer_id,
+                    listing_id=existing_paid.listing_id,
+                    amount=existing_paid.amount,
+                    currency=existing_paid.currency,
+                    provider="demo",
+                    gateway_order_id=existing_paid.gateway_order_id,
+                    gateway_key_id=None,
+                    gateway_configured=True,
+                    payment_status=existing_paid.payment_status,
+                    order_status=existing_paid.order_status,
+                    checkout_data={"payment_mode": "DEMO", "status": "ALREADY_PAID"},
+                    message_kn="ಈ ವಹಿವಾಟು ಈಗಾಗಲೇ ಯಶಸ್ವಿಯಾಗಿ ಪಾವತಿಸಲಾಗಿದೆ.",
+                    message_en="This offer has already been paid.",
+                )
+            raise ValueError("This offer has already been paid.")
+
+        # Calculate exact total
+        total_amount = offer.offered_price * offer.quantity
+
+        # Handle DEMO PAYMENT mode
+        if payload.payment_mode == "DEMO":
+            demo_order_id = f"demo_order_{uuid.uuid4().hex[:10]}"
+            demo_pay_id = f"demo_pay_{uuid.uuid4().hex[:10]}"
+
+            # Check if pending transaction exists
+            tx = (
+                db.query(MarketplaceTransaction)
+                .filter(MarketplaceTransaction.offer_id == offer.id)
+                .first()
+            )
+            if not tx:
+                tx = MarketplaceTransaction(
+                    id=uuid.uuid4(),
+                    offer_id=offer.id,
+                    listing_id=listing.id,
+                    buyer_id=offer.buyer_id,
+                    farmer_id=listing.farmer_id,
+                    amount=total_amount,
+                    currency="INR",
+                    idempotency_key=payload.idempotency_key,
+                    gateway_order_id=demo_order_id,
+                    gateway_payment_id=demo_pay_id,
+                    gateway_signature="DEMO_SIGNATURE_VERIFIED",
+                    payment_status="PAYMENT_SUCCESS",
+                    order_status="PAID",
+                )
+                db.add(tx)
+            else:
+                tx.payment_status = "PAYMENT_SUCCESS"
+                tx.order_status = "PAID"
+                tx.gateway_order_id = tx.gateway_order_id or demo_order_id
+                tx.gateway_payment_id = demo_pay_id
+                tx.gateway_signature = "DEMO_SIGNATURE_VERIFIED"
+                tx.failure_reason = None
+
+            # Mark listing as SOLD and offer as COMPLETED
+            listing.status = "SOLD"
+            offer.status = "COMPLETED"
+
+            db.commit()
+            db.refresh(tx)
+
+            logger.info("Demo payment SUCCESS for transaction %s (Offer: %s)", tx.id, offer.id)
+            return PaymentOrderResponse(
+                transaction_id=tx.id,
+                offer_id=tx.offer_id,
+                listing_id=tx.listing_id,
+                amount=tx.amount,
+                currency=tx.currency,
+                provider="demo",
+                gateway_order_id=tx.gateway_order_id,
+                gateway_key_id=None,
+                gateway_configured=True,
+                payment_status=tx.payment_status,
+                order_status=tx.order_status,
+                checkout_data={"payment_mode": "DEMO", "status": "SUCCESS"},
+                message_kn=f"ಡೆಮೊ ಪಾವತಿ ಯಶಸ್ವಿಯಾಗಿದೆ (₹{tx.amount}).",
+                message_en=f"Demo payment successful (₹{tx.amount}).",
+            )
+
+        # For LIVE gateway payment, only buyer or admin can initiate payment
+        if not is_buyer and not is_admin:
+            raise PermissionError("Access forbidden: Only buyer can initiate online gateway checkout.")
 
         provider_name = getattr(self.provider, "provider_name", "payu")
 
@@ -82,9 +186,6 @@ class MarketPaymentService:
                     message_en="Existing transaction retrieved." if is_configured else "Payment gateway is not currently configured.",
                 )
 
-        # Calculate exact total
-        total_amount = offer.offered_price * offer.quantity
-
         # Check if gateway is configured
         is_configured = self.provider.is_configured()
         gateway_order_id = None
@@ -96,17 +197,17 @@ class MarketPaymentService:
                 crop = db.get(Crop, listing.crop_id)
                 crop_name = crop.name_en if crop else "Produce Listing"
 
-                buyer = db.get(UserProfile, buyer_id)
+                buyer = db.get(UserProfile, offer.buyer_id)
                 customer_info = {
                     "name": buyer.full_name if buyer else "Buyer",
-                    "email": f"{buyer.phone or str(buyer_id)}@krushipragya.in",
+                    "email": f"{buyer.phone or str(offer.buyer_id)}@krushipragya.in",
                     "phone": buyer.phone or "9876543210",
                 }
 
                 notes = {
                     "offer_id": str(offer.id),
                     "listing_id": str(listing.id),
-                    "buyer_id": str(buyer_id),
+                    "buyer_id": str(offer.buyer_id),
                     "farmer_id": str(listing.farmer_id),
                     "crop_name": crop_name,
                 }
@@ -127,7 +228,7 @@ class MarketPaymentService:
             id=uuid.uuid4(),
             offer_id=offer.id,
             listing_id=listing.id,
-            buyer_id=buyer_id,
+            buyer_id=offer.buyer_id,
             farmer_id=listing.farmer_id,
             amount=total_amount,
             currency="INR",
@@ -139,6 +240,9 @@ class MarketPaymentService:
         db.add(tx)
         db.commit()
         db.refresh(tx)
+
+        if checkout_data:
+            checkout_data["checkout_url"] = f"/api/v1/market/payments/payu-checkout-form/{tx.id}"
 
         if not is_configured:
             return PaymentOrderResponse(
@@ -178,20 +282,46 @@ class MarketPaymentService:
     def verify_payment(
         self,
         db: Session,
-        buyer_id: uuid.UUID,
+        user_id: uuid.UUID,
         payload: PaymentVerifyRequest,
+        user_roles: Optional[List[str]] = None,
     ) -> TransactionResponse:
         """Verify client-submitted payment signature strictly on the server."""
         tx = db.get(MarketplaceTransaction, payload.transaction_id)
         if not tx:
             raise ValueError(f"Transaction '{payload.transaction_id}' not found.")
 
-        if tx.buyer_id != buyer_id:
+        is_buyer = (tx.buyer_id == user_id)
+        is_farmer = (tx.farmer_id == user_id)
+        is_admin = bool(user_roles and "ADMIN" in user_roles)
+
+        if not (is_buyer or is_farmer or is_admin):
             raise PermissionError("Access forbidden: You do not own this transaction.")
 
         # Idempotency: Already verified transactions cannot be transitioned again
         if tx.payment_status == "PAYMENT_SUCCESS":
             logger.info("Transaction %s is already verified as PAYMENT_SUCCESS.", tx.id)
+            return self._format_transaction_response(db, tx)
+
+        # Handle DEMO mode verification
+        if payload.payment_mode == "DEMO" or (payload.raw_payload and payload.raw_payload.get("payment_mode") == "DEMO") or payload.payu_status == "DEMO_SUCCESS":
+            tx.payment_status = "PAYMENT_SUCCESS"
+            tx.order_status = "PAID"
+            tx.gateway_payment_id = payload.payu_payment_id or f"demo_pay_{uuid.uuid4().hex[:10]}"
+            tx.gateway_signature = "DEMO_SIGNATURE_VERIFIED"
+            tx.failure_reason = None
+
+            listing = db.get(ProduceListing, tx.listing_id)
+            if listing:
+                listing.status = "SOLD"
+
+            offer = db.get(BuyerOffer, tx.offer_id)
+            if offer:
+                offer.status = "COMPLETED"
+
+            db.commit()
+            db.refresh(tx)
+            logger.info("Demo payment verified for transaction %s", tx.id)
             return self._format_transaction_response(db, tx)
 
         if not self.provider.is_configured():

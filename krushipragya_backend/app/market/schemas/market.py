@@ -279,6 +279,7 @@ class PaymentOrderCreateRequest(BaseModel):
     """Payload to create a server-side payment order for an accepted offer."""
     offer_id: uuid.UUID = Field(..., description="ID of the accepted buyer offer")
     idempotency_key: Optional[str] = Field(None, max_length=120, description="Client idempotency token to prevent double-charging")
+    payment_mode: Optional[str] = Field(None, description="Payment mode: DEMO or LIVE gateway")
 
 
 class PaymentOrderResponse(BaseModel):
@@ -304,6 +305,7 @@ class PaymentOrderResponse(BaseModel):
 class PaymentVerifyRequest(BaseModel):
     """Client payment result submitted for authoritative server-side signature/hash verification."""
     transaction_id: uuid.UUID
+    payment_mode: Optional[str] = Field(None, description="Payment mode: DEMO or LIVE gateway")
     # Razorpay parameters (optional)
     razorpay_order_id: Optional[str] = None
     razorpay_payment_id: Optional[str] = None

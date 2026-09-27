@@ -63,18 +63,22 @@ class PaymentProvider(ABC):
         pass
 
 
+_SENTINEL = object()
+
+
 class PayUPaymentProvider(PaymentProvider):
     """PayU Hosted Checkout / Web API payment provider implementation."""
 
     def __init__(
         self,
-        merchant_key: Optional[str] = None,
-        merchant_salt: Optional[str] = None,
-        environment: Optional[str] = None,
+        merchant_key: Any = _SENTINEL,
+        merchant_salt: Any = _SENTINEL,
+        environment: Any = _SENTINEL,
     ):
-        self.merchant_key = merchant_key or settings.PAYU_MERCHANT_KEY
-        self.merchant_salt = merchant_salt or settings.PAYU_MERCHANT_SALT
-        self.environment = (environment or settings.PAYU_ENVIRONMENT or "test").lower()
+        self.merchant_key = merchant_key if merchant_key is not _SENTINEL else settings.PAYU_MERCHANT_KEY
+        self.merchant_salt = merchant_salt if merchant_salt is not _SENTINEL else settings.PAYU_MERCHANT_SALT
+        env = environment if environment is not _SENTINEL else settings.PAYU_ENVIRONMENT
+        self.environment = (env or "test").lower()
 
     @property
     def provider_name(self) -> str:
@@ -218,16 +222,19 @@ class PayUPaymentProvider(PaymentProvider):
 
         cust = customer_info or {}
         txnid = receipt or f"tx_{uuid.uuid4().hex[:16]}"
-        productinfo = (notes or {}).get("crop_name") or "Produce Listing Purchase"
+        productinfo = (notes or {}).get("productinfo") or (notes or {}).get("crop_name") or "Produce Listing Purchase"
         firstname = cust.get("name") or "Buyer"
         email = cust.get("email") or "buyer@krushipragya.in"
         phone = cust.get("phone") or "9876543210"
 
-        udf1 = str((notes or {}).get("offer_id", ""))
-        udf2 = str((notes or {}).get("listing_id", ""))
-        udf3 = str((notes or {}).get("buyer_id", ""))
-        udf4 = str((notes or {}).get("farmer_id", ""))
-        udf5 = ""
+        udf1 = str((notes or {}).get("udf1") if (notes or {}).get("udf1") is not None else (notes or {}).get("offer_id", ""))
+        udf2 = str((notes or {}).get("udf2") if (notes or {}).get("udf2") is not None else (notes or {}).get("listing_id", ""))
+        udf3 = str((notes or {}).get("udf3") if (notes or {}).get("udf3") is not None else (notes or {}).get("buyer_id", ""))
+        udf4 = str((notes or {}).get("udf4") if (notes or {}).get("udf4") is not None else (notes or {}).get("farmer_id", ""))
+        udf5 = str((notes or {}).get("udf5", ""))
+
+        surl = (notes or {}).get("surl") or "https://krushipragya.in/api/v1/market/payments/payu-callback"
+        furl = (notes or {}).get("furl") or "https://krushipragya.in/api/v1/market/payments/payu-callback"
 
         amount_str = f"{amount:.2f}"
         payment_hash = self.generate_hash(
@@ -253,8 +260,8 @@ class PayUPaymentProvider(PaymentProvider):
                 "firstname": firstname,
                 "email": email,
                 "phone": phone,
-                "surl": "https://krushipragya.in/api/v1/market/payments/payu-callback",
-                "furl": "https://krushipragya.in/api/v1/market/payments/payu-callback",
+                "surl": surl,
+                "furl": furl,
                 "hash": payment_hash,
                 "udf1": udf1,
                 "udf2": udf2,
@@ -304,13 +311,13 @@ class RazorpayPaymentProvider(PaymentProvider):
 
     def __init__(
         self,
-        key_id: Optional[str] = None,
-        key_secret: Optional[str] = None,
-        webhook_secret: Optional[str] = None,
+        key_id: Any = _SENTINEL,
+        key_secret: Any = _SENTINEL,
+        webhook_secret: Any = _SENTINEL,
     ):
-        self.key_id = key_id or settings.RAZORPAY_KEY_ID
-        self.key_secret = key_secret or settings.RAZORPAY_KEY_SECRET
-        self.webhook_secret = webhook_secret or settings.RAZORPAY_WEBHOOK_SECRET
+        self.key_id = key_id if key_id is not _SENTINEL else settings.RAZORPAY_KEY_ID
+        self.key_secret = key_secret if key_secret is not _SENTINEL else settings.RAZORPAY_KEY_SECRET
+        self.webhook_secret = webhook_secret if webhook_secret is not _SENTINEL else settings.RAZORPAY_WEBHOOK_SECRET
 
     @property
     def provider_name(self) -> str:

@@ -27,7 +27,7 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   onBack,
 }) => {
   const { language } = useLanguage();
-  const { login } = useAuth();
+  const { user, login } = useAuth();
 
   const [otp, setOtp] = useState('123456');
   const [timer, setTimer] = useState(30);
@@ -40,8 +40,8 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   }, [timer]);
 
   const handleVerify = () => {
-    // All users authenticate as farmer initially
-    login(phone, 'farmer', 'v2', 'ಅಭಿ ಗೌಡ (Abhi)');
+    const activeRole = user?.role || 'farmer';
+    login(phone, activeRole, user?.villageId || 'v2', user?.name);
     onVerifySuccess();
   };
 

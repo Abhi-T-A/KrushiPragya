@@ -7,6 +7,7 @@ import {
   ImageBackground,
   Dimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KrushiPragyaLogo } from '../../components/common/KrushiPragyaLogo';
 import { Colors, Spacing, Typography } from '../../constants/theme';
 
@@ -14,18 +15,41 @@ const { width, height } = Dimensions.get('window');
 
 interface SplashScreenProps {
   onFinish?: () => void;
+  onReturningUser?: () => void;
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish, onReturningUser }) => {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (onFinish) {
-        onFinish();
+    let isMounted = true;
+    const checkUserStatus = async () => {
+      try {
+        const isDone = await AsyncStorage.getItem('krushi_profile_setup_done');
+        const timer = setTimeout(() => {
+          if (!isMounted) return;
+          if (isDone === 'true' && onReturningUser) {
+            onReturningUser();
+          } else if (onFinish) {
+            onFinish();
+          }
+        }, 2800);
+        return () => clearTimeout(timer);
+      } catch {
+        const timer = setTimeout(() => {
+          if (!isMounted) return;
+          if (onFinish) {
+            onFinish();
+          }
+        }, 2800);
+        return () => clearTimeout(timer);
       }
-    }, 4000);
+    };
 
-    return () => clearTimeout(timer);
-  }, []);
+    checkUserStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [onFinish, onReturningUser]);
 
   return (
     <View style={styles.container}>

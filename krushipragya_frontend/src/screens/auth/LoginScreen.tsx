@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   ImageBackground,
+  Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth, UserRole, ROLE_PROFILES } from '../../context/AuthContext';
 import { Button } from '../../components/common/Button';
@@ -28,6 +29,8 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 interface RoleCardItem {
   role: UserRole;
   labelEn: string;
@@ -44,8 +47,8 @@ const ROLE_ITEMS: RoleCardItem[] = [
     role: 'farmer',
     labelEn: 'Farmer',
     labelKn: 'ಬೆಳೆಗಾರ / ರೈತ',
-    subEn: 'Mallikarjuna Gowda (Ujire)',
-    subKn: 'ಮಲ್ಲಿಕಾರ್ಜುನ ಗೌಡ (ಉಜಿರೆ)',
+    subEn: 'Crop health, weather alerts & mandi rates',
+    subKn: 'ಬೆಳೆ ರಕ್ಷಣೆ, ಹವಾಮಾನ & ಮಾರುಕಟ್ಟೆ ಮಾಹಿತಿ',
     Icon: Sprout,
     color: '#16A34A',
     bg: '#DCFCE7',
@@ -54,8 +57,8 @@ const ROLE_ITEMS: RoleCardItem[] = [
     role: 'expert',
     labelEn: 'Agriculture Expert',
     labelKn: 'ಕೃಷಿ ತಜ್ಞ / ವಿಜ್ಞಾನಿ',
-    subEn: 'Dr. Ramesh K (KVK Brahmavar)',
-    subKn: 'ಡಾ. ರಮೇಶ್ (ಬ್ರಹ್ಮಾವರ)',
+    subEn: 'Disease diagnosis & expert verification',
+    subKn: 'ರೋಗ ತಪಾಸಣೆ & ವೈಜ್ಞಾನಿಕ ದೃಢೀಕರಣ',
     Icon: Microscope,
     color: '#2563EB',
     bg: '#DBEAFE',
@@ -64,8 +67,8 @@ const ROLE_ITEMS: RoleCardItem[] = [
     role: 'officer',
     labelEn: 'Government Officer',
     labelKn: 'ಕೃಷಿ ಇಲಾಖೆ ಅಧಿಕಾರಿ',
-    subEn: 'Sunitha IAS (Agri Dept)',
-    subKn: 'ಶ್ರೀಮತಿ ಸುನಿತಾ (ಕೃಷಿ ಇಲಾಖೆ)',
+    subEn: 'Government schemes & subsidies',
+    subKn: 'ಸರ್ಕಾರಿ ಯೋಜನೆಗಳು & ರೈತ ಸೌಲಭ್ಯಗಳು',
     Icon: Landmark,
     color: '#9333EA',
     bg: '#F3E8FF',
@@ -74,8 +77,8 @@ const ROLE_ITEMS: RoleCardItem[] = [
     role: 'buyer',
     labelEn: 'Buyer / Trader',
     labelKn: 'ಖರೀದಿದಾರ / ವರ್ತಕ',
-    subEn: 'Rajesh Seth (APMC Mandi)',
-    subKn: 'ರಾಜೇಶ್ ಸೇಠ್ (ಎಪಿಎಂಸಿ)',
+    subEn: 'Crop procurement & APMC trading',
+    subKn: 'ಬೆಳೆ ಖರೀದಿ & ಎಪಿಎಂಸಿ ಮಾರುಕಟ್ಟೆ',
     Icon: Store,
     color: '#D97706',
     bg: '#FEF3C7',
@@ -84,8 +87,8 @@ const ROLE_ITEMS: RoleCardItem[] = [
     role: 'community',
     labelEn: 'Community / FPO',
     labelKn: 'ಗ್ರಾಮ ಸಮುದಾಯ & ಎಫ್‌ಪಿಒ',
-    subEn: 'Suresh Gowda (FPO Hub)',
-    subKn: 'ಸುರೇಶ್ ಗೌಡ (ಎಫ್‌ಪಿಒ)',
+    subEn: 'FPO coordination & community support',
+    subKn: 'ರೈತ ಉತ್ಪಾದಕ ಸಂಸ್ಥೆ & ಸಮುದಾಯ ನೆರವು',
     Icon: Users,
     color: '#0D9488',
     bg: '#CCFBF1',
@@ -94,57 +97,73 @@ const ROLE_ITEMS: RoleCardItem[] = [
 
 interface LoginScreenProps {
   onProceedToOTP: (phone: string) => void;
+  onEnterApp?: () => void;
   onBack?: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onProceedToOTP,
+  onEnterApp,
   onBack,
 }) => {
+  const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   const { login, setRole } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole>('farmer');
-  const [phoneNumber, setPhoneNumber] = useState('9876543210');
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   const isKn = language === 'kn';
+  const isTallScreen = SCREEN_HEIGHT >= 800;
+  const isCompactScreen = SCREEN_HEIGHT < 720;
 
   const handleSelectRole = (role: UserRole) => {
     setSelectedRole(role);
     setRole(role);
-    const profile = ROLE_PROFILES[role];
-    if (profile?.phone) {
-      setPhoneNumber(profile.phone.replace('+91', '').trim().replace(/\s/g, ''));
-    }
   };
 
   const handleContinue = () => {
-    const formattedPhone = phoneNumber.startsWith('+91')
-      ? phoneNumber
-      : `+91 ${phoneNumber}`;
+    const raw = phoneNumber.trim();
+    const formattedPhone = raw
+      ? (raw.startsWith('+91') ? raw : `+91 ${raw}`)
+      : '+91 9876543210';
     login(formattedPhone, selectedRole, 'v2');
-    onProceedToOTP(formattedPhone);
+    if (onEnterApp) {
+      onEnterApp();
+    } else {
+      onProceedToOTP(formattedPhone);
+    }
   };
 
+  const bannerHeight = Math.min(210, Math.max(160, Math.round(SCREEN_HEIGHT * 0.22))) + insets.top;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { minHeight: SCREEN_HEIGHT },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Top Hero Banner */}
-          <View style={styles.bannerContainer}>
+          <View style={[styles.bannerContainer, { height: bannerHeight }]}>
             <ImageBackground
               source={require('../../../assets/login_banner.jpg')}
               style={styles.bannerImage}
               resizeMode="cover"
             >
-              <View style={styles.bannerOverlay}>
+              <View style={[styles.bannerOverlay, { paddingTop: insets.top + (isCompactScreen ? 4 : 8) }]}>
                 {onBack && (
                   <TouchableOpacity
                     activeOpacity={0.7}
                     onPress={onBack}
-                    style={styles.backButton}
+                    style={[styles.backButton, { top: insets.top + (isCompactScreen ? 6 : 10) }]}
                   >
                     <ArrowLeft size={18} color={Colors.textPrimary} />
                   </TouchableOpacity>
@@ -157,104 +176,118 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   </Text>
                 </View>
 
-                <Text style={styles.bannerTitle}>
+                <Text style={[styles.bannerTitle, isCompactScreen && { fontSize: 20 }]}>
                   {isKn ? 'ನಿಮ್ಮ ಪಾತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ' : 'Select Your Role'}
                 </Text>
                 <Text style={styles.bannerSubtitle}>
                   {isKn
-                    ? '5 ಪ್ರಮುಖ ಪಾತ್ರಗಳಲ್ಲಿ ಒಂದನ್ನು ಆಯ್ಕೆಮಾಡಿ ಮುಂದುವರಿಯಿರಿ'
-                    : 'Choose your stakeholder profile to enter dashboard'}
+                    ? 'ಮುಂದುವರಿಯಲು ನಿಮ್ಮ ಪಾತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ ಲಾಗಿನ್ ಆಗಿ'
+                    : 'Choose your role to enter KrushiPragya'}
                 </Text>
               </View>
             </ImageBackground>
           </View>
 
-          {/* Form Content Area */}
-          <View style={styles.formContainer}>
-            {/* 5-Role Selection Cards Grid */}
-            <Text style={styles.roleHeaderLabel}>
-              {isKn ? '1. ಪಾತ್ರ ಆಯ್ಕೆ (5 User Personas):' : '1. Select User Role (5 Personas):'}
-            </Text>
-
-            <View style={styles.roleList}>
-              {ROLE_ITEMS.map((item) => {
-                const isSelected = selectedRole === item.role;
-                const { Icon, color, bg, labelEn, labelKn, subEn, subKn } = item;
-
-                return (
-                  <TouchableOpacity
-                    key={item.role}
-                    activeOpacity={0.85}
-                    onPress={() => handleSelectRole(item.role)}
-                    style={[
-                      styles.roleCard,
-                      isSelected && {
-                        borderColor: color,
-                        borderWidth: 2,
-                        backgroundColor: bg,
-                      },
-                    ]}
-                  >
-                    <View style={[styles.roleIconCircle, { backgroundColor: isSelected ? color : '#F1F5F9' }]}>
-                      <Icon size={18} color={isSelected ? '#FFFFFF' : color} strokeWidth={2.4} />
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.roleCardTitle, isSelected && { color: color, fontWeight: '800' }]}>
-                        {isKn ? labelKn : labelEn}
-                      </Text>
-                      <Text style={styles.roleCardSub}>
-                        {isKn ? subKn : subEn}
-                      </Text>
-                    </View>
-
-                    {isSelected && (
-                      <CheckCircle2 size={18} color={color} strokeWidth={2.4} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Mobile Number Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
-                {isKn ? '2. ಮೊಬೈಲ್ ಸಂಖ್ಯೆ (Mobile Number):' : '2. Mobile Number:'}
+          {/* Form Content Area: properly fills remaining vertical screen space */}
+          <View
+            style={[
+              styles.formContainer,
+              {
+                paddingBottom: Math.max(insets.bottom, 16) + (isCompactScreen ? 6 : 12),
+              },
+            ]}
+          >
+            <View style={styles.upperFormSection}>
+              {/* 5-Role Selection Cards Grid */}
+              <Text style={styles.roleHeaderLabel}>
+                {isKn ? '1. ಪಾತ್ರ ಆಯ್ಕೆಮಾಡಿ:' : '1. Select Your Role:'}
               </Text>
-              <View style={styles.phoneInputRow}>
-                <View style={styles.countryCodeBox}>
-                  <Phone size={15} color={Colors.primary} />
-                  <Text style={styles.countryCodeText}>+91</Text>
+
+              <View style={[styles.roleList, { gap: isCompactScreen ? 6 : (isTallScreen ? 10 : 8) }]}>
+                {ROLE_ITEMS.map((item) => {
+                  const isSelected = selectedRole === item.role;
+                  const { Icon, color, bg, labelEn, labelKn, subEn, subKn } = item;
+
+                  return (
+                    <TouchableOpacity
+                      key={item.role}
+                      activeOpacity={0.85}
+                      onPress={() => handleSelectRole(item.role)}
+                      style={[
+                        styles.roleCard,
+                        {
+                          paddingVertical: isCompactScreen ? 8 : (isTallScreen ? 11 : 9.5),
+                        },
+                        isSelected && {
+                          borderColor: color,
+                          borderWidth: 2,
+                          backgroundColor: bg,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.roleIconCircle, { backgroundColor: isSelected ? color : '#F1F5F9' }]}>
+                        <Icon size={18} color={isSelected ? '#FFFFFF' : color} strokeWidth={2.4} />
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.roleCardTitle, isSelected && { color: color, fontWeight: '800' }]}>
+                          {isKn ? labelKn : labelEn}
+                        </Text>
+                        <Text style={styles.roleCardSub}>
+                          {isKn ? subKn : subEn}
+                        </Text>
+                      </View>
+
+                      {isSelected && (
+                        <CheckCircle2 size={18} color={color} strokeWidth={2.4} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Mobile Number Input */}
+              <View style={[styles.inputGroup, { marginTop: isCompactScreen ? 4 : (isTallScreen ? 8 : 6) }]}>
+                <Text style={styles.inputLabel}>
+                  {isKn ? '2. ಮೊಬೈಲ್ ಸಂಖ್ಯೆ (Mobile Number):' : '2. Mobile Number:'}
+                </Text>
+                <View style={styles.phoneInputRow}>
+                  <View style={styles.countryCodeBox}>
+                    <Phone size={15} color={Colors.primary} />
+                    <Text style={styles.countryCodeText}>+91</Text>
+                  </View>
+                  <TextInput
+                    style={styles.phoneTextInput}
+                    placeholder={isKn ? '10 ಅಂಕಿಗಳ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ' : '10-digit mobile number'}
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                  />
                 </View>
-                <TextInput
-                  style={styles.phoneTextInput}
-                  placeholder={isKn ? '10 ಅಂಕಿಗಳ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ' : '10-digit mobile number'}
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                />
               </View>
             </View>
 
-            {/* Main Submit Button */}
-            <Button
-              title={isKn ? 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಪ್ರವೇಶಿಸಿ (Enter App)' : 'Enter Dashboard (Continue)'}
-              onPress={handleContinue}
-              size="large"
-              icon={<ChevronRight size={20} color={Colors.textWhite} />}
-              style={styles.continueBtn}
-            />
+            {/* Bottom Action Area: Anchored cleanly at the bottom, eliminating empty space and avoiding floating button overlap */}
+            <View style={[styles.bottomActionSection, { marginTop: isCompactScreen ? 8 : (isTallScreen ? 16 : 12) }]}>
+              <Button
+                title={isKn ? 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಪ್ರವೇಶಿಸಿ (Enter App)' : 'Enter Dashboard (Continue)'}
+                onPress={handleContinue}
+                size="large"
+                icon={<ChevronRight size={20} color={Colors.textWhite} />}
+                style={styles.continueBtn}
+              />
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
@@ -263,10 +296,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40,
+    backgroundColor: Colors.background,
   },
   bannerContainer: {
-    height: 190,
     width: '100%',
     overflow: 'hidden',
   },
@@ -277,19 +309,24 @@ const styles = StyleSheet.create({
   bannerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
     justifyContent: 'flex-end',
   },
   backButton: {
     position: 'absolute',
-    top: Spacing.sm,
     left: Spacing.md,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
   welcomeTag: {
     flexDirection: 'row',
@@ -318,8 +355,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   formContainer: {
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    justifyContent: 'space-between',
+  },
+  upperFormSection: {
+    gap: Spacing.xs,
   },
   roleHeaderLabel: {
     fontSize: 13,
@@ -328,7 +370,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   roleList: {
-    gap: 8,
     marginBottom: Spacing.xs,
   },
   roleCard: {
@@ -338,8 +379,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 10,
-    padding: 10,
+    paddingHorizontal: 12,
     gap: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
   roleIconCircle: {
     width: 36,
@@ -360,7 +406,6 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     gap: 4,
-    marginTop: 4,
   },
   inputLabel: {
     fontSize: 13,
@@ -369,7 +414,7 @@ const styles = StyleSheet.create({
   },
   phoneInputRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   countryCodeBox: {
     flexDirection: 'row',
@@ -379,8 +424,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderRadius: 8,
-    paddingHorizontal: 10,
-    height: 46,
+    paddingHorizontal: 12,
+    height: 48,
   },
   countryCodeText: {
     fontSize: 14,
@@ -389,16 +434,20 @@ const styles = StyleSheet.create({
   },
   phoneTextInput: {
     flex: 1,
-    height: 46,
+    height: 48,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderRadius: 8,
     paddingHorizontal: 12,
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
     color: '#0F172A',
   },
+  bottomActionSection: {
+    width: '100%',
+  },
   continueBtn: {
-    marginTop: 8,
+    width: '100%',
   },
 });

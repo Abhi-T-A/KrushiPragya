@@ -282,3 +282,44 @@ export const diseaseService = {
     };
   },
 };
+
+export interface ProfileSetupPayloadApi {
+  fullName: string;
+  phone: string;
+  role: string;
+  villageName?: string;
+  villageId?: string;
+  district?: string;
+  state?: string;
+  language?: string;
+  userId?: string;
+}
+
+export const saveUserProfileSetup = async (payload: ProfileSetupPayloadApi) => {
+  try {
+    const res = await api.post('/auth/profile-setup', {
+      full_name: payload.fullName,
+      phone: payload.phone,
+      role: payload.role,
+      village_name: payload.villageName || 'Ujire',
+      village_id: payload.villageId,
+      district: payload.district || 'Dakshina Kannada',
+      state: payload.state || 'Karnataka',
+      language: payload.language || 'kn',
+      user_id: payload.userId,
+    });
+    return res.data;
+  } catch (err: any) {
+    console.log('[API] saveUserProfileSetup warning:', err?.message || err);
+    return null;
+  }
+};
+
+export const fetchCanonicalVillages = async () => {
+  try {
+    const res = await api.get('/villages');
+    return res.data || [];
+  } catch {
+    return [];
+  }
+};

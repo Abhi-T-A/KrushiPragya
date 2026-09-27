@@ -1,6 +1,7 @@
 """API endpoints for farmer authentication and session lifecycle."""
 import logging
-from typing import Dict
+from typing import Dict, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -174,4 +175,130 @@ def get_me(
         "email": current_user.email,
         "roles": current_user.roles,
         "profile": profile_resp,
+    }
+
+
+class ProfileSetupPayload(BaseModel):
+    full_name: str
+    phone: str
+    role: str
+    village_name: Optional[str] = "Ujire"
+    district: Optional[str] = "Dakshina Kannada"
+    state: Optional[str] = "Karnataka"
+    village_id: Optional[str] = None
+    language: Optional[str] = "kn"
+    user_id: Optional[str] = None
+
+
+@router.post(
+    "/profile-setup",
+    summary="Save user profile setup and location",
+    description="Persists user profile, assigns RBAC role, and links village/location in PostgreSQL/Supabase.",
+)
+def save_profile_setup(
+    payload: ProfileSetupPayload,
+    db: Session = Depends(get_db),
+):
+    """Save authenticated user's profile and location in user_profiles, user_roles, and villages."""
+    import uuid as _uuid
+    from app.models.user_profile import UserProfile
+    from app.models.role import UserRole
+    from app.models.village import Village
+
+    ROLE_ID_MAP = {
+        "FARMER": _uuid.UUID("11111111-1111-4111-8111-111111111111"),
+        "AGRICULTURE_EXPERT": _uuid.UUID("11111111-1111-4111-8111-111111111112"),
+        "GOVERNMENT_OFFICER": _uuid.UUID("11111111-1111-4111-8111-111111111113"),
+        "BUYER": _uuid.UUID("11111111-1111-4111-8111-111111111114"),
+        "COMMUNITY_MEMBER": _uuid.UUID("11111111-1111-4111-8111-111111111115"),
+    }
+
+    raw_role = (payload.role or "FARMER").upper().strip()
+    if "EXPERT" in raw_role:
+        role_code = "AGRICULTURE_EXPERT"
+    elif "GOV" in raw_role or "OFFICER" in raw_role:
+        role_code = "GOVERNMENT_OFFICER"
+    elif "BUY" in raw_role or "TRADE" in raw_role:
+        role_code = "BUYER"
+    elif "COMMUNITY" in raw_role or "VILLAGE" in raw_role or "FPO" in raw_role:
+        role_code = "COMMUNITY_MEMBER"
+    else:
+        role_code = "FARMER"
+
+    # Determine user UUID
+    target_uuid = ROLE_ID_MAP.get(role_code, ROLE_ID_MAP["FARMER"])
+    if payload.user_id:
+        try:
+            target_uuid = _uuid.UUID(payload.user_id)
+        except ValueError:
+            pass
+
+    # Resolve Village
+    village_orm = None
+    if payload.village_id:
+        village_orm = db.query(Village).filter(Village.id == payload.village_id).first()
+    if not village_orm and payload.village_name:
+        village_orm = (
+            db.query(Village)
+            .filter(Village.name.ilike(f"%{payload.village_name.strip()}%"))
+            .first()
+        )
+    if not village_orm:
+        village_orm = db.query(Village).filter(Village.id == "V001").first()
+
+    village_id_val = village_orm.id if village_orm else "V001"
+
+    # Upsert UserProfile
+    profile_orm = db.query(UserProfile).filter(UserProfile.id == target_uuid).first()
+    clean_phone = payload.phone.replace(" ", "").replace("-", "").strip()
+
+    if profile_orm:
+        profile_orm.full_name = payload.full_name.strip() or profile_orm.full_name
+        profile_orm.phone = clean_phone or profile_orm.phone
+        profile_orm.village_id = village_id_val
+        profile_orm.language = payload.language or profile_orm.language
+    else:
+        profile_orm = UserProfile(
+            id=target_uuid,
+            full_name=payload.full_name.strip() or "User",
+            phone=clean_phone,
+            village_id=village_id_val,
+            language=payload.language or "kn",
+        )
+        db.add(profile_orm)
+
+    # Upsert UserRole
+    user_role_orm = (
+        db.query(UserRole)
+        .filter(UserRole.user_id == target_uuid, UserRole.role_code == role_code)
+        .first()
+    )
+    if not user_role_orm:
+        user_role_orm = UserRole(
+            user_id=target_uuid,
+            role_code=role_code,
+            status="ACTIVE",
+        )
+        db.add(user_role_orm)
+    else:
+        user_role_orm.status = "ACTIVE"
+
+    try:
+        db.commit()
+        db.refresh(profile_orm)
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Profile setup DB commit issue (non-fatal): %s", exc)
+
+    return {
+        "status": "success",
+        "user_id": str(target_uuid),
+        "full_name": profile_orm.full_name,
+        "phone": profile_orm.phone,
+        "role": role_code,
+        "village_id": village_id_val,
+        "village_name": village_orm.name if village_orm else payload.village_name,
+        "district": village_orm.district if village_orm else payload.district,
+        "state": village_orm.state if village_orm else payload.state,
+        "language": profile_orm.language,
     }

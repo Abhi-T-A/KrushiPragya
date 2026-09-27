@@ -8,135 +8,135 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Location from 'expo-location';
 import { useLanguage } from '../../context/LanguageContext';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, UserRole } from '../../context/AuthContext';
 import { Button } from '../../components/common/Button';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
 import {
   ArrowLeft,
   User,
-  MapPin,
-  Trees,
-  Sprout,
-  CheckCircle2,
-  Circle,
-  Search,
+  Phone,
   ChevronRight,
-  Navigation,
+  Sparkles,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  Sprout,
+  Microscope,
+  Landmark,
+  Store,
+  Users,
 } from 'lucide-react-native';
 
-const VILLAGES_LIST = [
-  { id: 'v1', nameKn: 'ತೀರ್ಥಹಳ್ಳಿ (Thirthahalli)', nameEn: 'Thirthahalli', district: 'Shivamogga' },
-  { id: 'v2', nameKn: 'ಉಜಿರೆ (Ujire)', nameEn: 'Ujire', district: 'Dakshina Kannada' },
-  { id: 'v3', nameKn: 'ಬೆಳ್ತಂಗಡಿ (Belthangady)', nameEn: 'Belthangady', district: 'Dakshina Kannada' },
-  { id: 'v4', nameKn: 'ಪುತ್ತೂರು (Puttur)', nameEn: 'Puttur', district: 'Dakshina Kannada' },
-  { id: 'v5', nameKn: 'ಸುಳ್ಯ (Sullia)', nameEn: 'Sullia', district: 'Dakshina Kannada' },
-  { id: 'v6', nameKn: 'ಶಿರಸಿ (Sirsi)', nameEn: 'Sirsi', district: 'Uttara Kannada' },
-  { id: 'v7', nameKn: 'ಮಂಗಳೂರು (Mangalore)', nameEn: 'Mangalore', district: 'Dakshina Kannada' },
-];
-
-const CROPS_LIST = [
-  { id: 'arecanut', emoji: '🌴', nameKn: 'ಅಡಿಕೆ', nameEn: 'Arecanut' },
-  { id: 'paddy', emoji: '🌾', nameKn: 'ಭತ್ತ', nameEn: 'Paddy' },
-  { id: 'coconut', emoji: '🥥', nameKn: 'ತೆಂಗು', nameEn: 'Coconut' },
-  { id: 'pepper', emoji: '🌶', nameKn: 'ಕಾಳುಮೆಣಸು', nameEn: 'Black Pepper' },
-  { id: 'cardamom', emoji: '🌿', nameKn: 'ಏಲಕ್ಕಿ', nameEn: 'Cardamom' },
-  { id: 'turmeric', emoji: '🟡', nameKn: 'ಅರಿಶಿನ', nameEn: 'Turmeric' },
-  { id: 'ginger', emoji: '🫚', nameKn: 'ಶುಂಠಿ', nameEn: 'Ginger' },
-];
-
 interface ProfileSetupScreenProps {
-  onComplete: () => void;
+  onProceedToOTP: (data: { fullName: string; phone: string }) => void;
   onBack: () => void;
+  initialName?: string;
+  initialPhone?: string;
 }
 
 export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({
-  onComplete,
+  onProceedToOTP,
   onBack,
+  initialName = '',
+  initialPhone = '',
 }) => {
   const { language } = useLanguage();
-  const { login } = useAuth();
+  const { user } = useAuth();
+  const isKn = language === 'kn';
 
-  // Wizard Steps: 1 = Name, 2 = Village, 3 = Land Acres, 4 = Crops
-  const [step, setStep] = useState<number>(1);
-
-  // Form states
-  const [name, setName] = useState('ಅಭಿ ಗೌಡ');
-  const [villageSearch, setVillageSearch] = useState('');
-  const [selectedVillage, setSelectedVillage] = useState(VILLAGES_LIST[1]); // Ujire default
-  const [landAcres, setLandAcres] = useState('2.5');
-  const [selectedCrops, setSelectedCrops] = useState<string[]>(['arecanut', 'paddy']);
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-
-  const filteredVillages = VILLAGES_LIST.filter(
-    (v) =>
-      v.nameKn.toLowerCase().includes(villageSearch.toLowerCase()) ||
-      v.nameEn.toLowerCase().includes(villageSearch.toLowerCase()) ||
-      v.district.toLowerCase().includes(villageSearch.toLowerCase())
+  const [fullName, setFullName] = useState(initialName || user?.name || '');
+  const [phoneNumber, setPhoneNumber] = useState(
+    (initialPhone || user?.phone || '')
+      .replace('+91', '')
+      .replace(/\s+/g, '')
+      .trim()
   );
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const toggleCrop = (cropId: string) => {
-    if (selectedCrops.includes(cropId)) {
-      if (selectedCrops.length > 1) {
-        setSelectedCrops(selectedCrops.filter((c) => c !== cropId));
-      }
-    } else {
-      setSelectedCrops([...selectedCrops, cropId]);
+  const currentRole = user?.role || 'farmer';
+
+  const getRoleBadge = (role: UserRole) => {
+    switch (role) {
+      case 'expert':
+        return {
+          titleEn: 'Agriculture Expert',
+          titleKn: 'ಕೃಷಿ ತಜ್ಞ / ವಿಜ್ಞಾನಿ',
+          color: '#2563EB',
+          bg: '#DBEAFE',
+          Icon: Microscope,
+        };
+      case 'officer':
+        return {
+          titleEn: 'Government Officer',
+          titleKn: 'ಕೃಷಿ ಇಲಾಖೆ ಅಧಿಕಾರಿ',
+          color: '#9333EA',
+          bg: '#F3E8FF',
+          Icon: Landmark,
+        };
+      case 'buyer':
+        return {
+          titleEn: 'Buyer / Trader',
+          titleKn: 'ಖರೀದಿದಾರ / ವರ್ತಕ',
+          color: '#D97706',
+          bg: '#FEF3C7',
+          Icon: Store,
+        };
+      case 'community':
+      case 'village_node':
+        return {
+          titleEn: 'Community Member',
+          titleKn: 'ಗ್ರಾಮ ಸಮುದಾಯ ಸದಸ್ಯ',
+          color: '#0D9488',
+          bg: '#CCFBF1',
+          Icon: Users,
+        };
+      case 'farmer':
+      default:
+        return {
+          titleEn: 'Farmer',
+          titleKn: 'ಬೆಳೆಗಾರ / ರೈತ',
+          color: '#16A34A',
+          bg: '#DCFCE7',
+          Icon: Sprout,
+        };
     }
   };
 
-  // 1-Tap Current GPS Location Detection
-  const handleUseCurrentLocation = async () => {
-    setIsDetectingLocation(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        alert(
-          language === 'kn'
-            ? 'ಸ್ಥಳದ ಅನುಮತಿ ಅಗತ್ಯವಿದೆ'
-            : 'Location permission is required to detect your village.'
-        );
-        setIsDetectingLocation(false);
-        return;
-      }
+  const roleMeta = getRoleBadge(currentRole);
+  const RoleIcon = roleMeta.Icon;
 
-      await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      // Simulate/Match closest Malnad village (Ujire)
-      setSelectedVillage(VILLAGES_LIST[1]);
-      setVillageSearch('');
-    } catch {
-      // Fallback
-      setSelectedVillage(VILLAGES_LIST[1]);
-    } finally {
-      setIsDetectingLocation(false);
-    }
-  };
+  const handleContinue = () => {
+    setErrorMessage('');
+    const cleanName = fullName.trim();
+    const cleanDigits = phoneNumber.replace(/\D/g, '').trim();
 
-  const handleNext = () => {
-    if (step < 4) {
-      setStep(step + 1);
-    } else {
-      // Finish profile setup and save to context
-      login(
-        '+91 98765 43210',
-        'farmer',
-        selectedVillage.id,
-        name.trim() || 'ಅಭಿ ಗೌಡ'
+    if (!cleanName) {
+      setErrorMessage(
+        isKn ? 'ದಯವಿಟ್ಟು ನಿಮ್ಮ ಪೂರ್ಣ ಹೆಸರನ್ನು ನಮೂದಿಸಿ.' : 'Please enter your full name.'
       );
-      onComplete();
+      return;
     }
-  };
 
-  const handleStepBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    } else {
-      onBack();
+    if (!cleanDigits || cleanDigits.length < 10) {
+      setErrorMessage(
+        isKn
+          ? 'ದಯವಿಟ್ಟು ಸರಿಯಾದ 10 ಅಂಕಿಗಳ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ.'
+          : 'Please enter a valid 10-digit mobile number.'
+      );
+      return;
     }
+
+    const formattedPhone = cleanDigits.startsWith('91') && cleanDigits.length === 12
+      ? `+${cleanDigits}`
+      : `+91 ${cleanDigits.slice(-10)}`;
+
+    onProceedToOTP({
+      fullName: cleanName,
+      phone: formattedPhone,
+    });
   };
 
   return (
@@ -147,236 +147,134 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({
       >
         {/* Top Header Bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity activeOpacity={0.7} onPress={handleStepBack} style={styles.backButton}>
-            <ArrowLeft size={22} color={Colors.textPrimary} />
+          <TouchableOpacity activeOpacity={0.7} onPress={onBack} style={styles.backButton}>
+            <ArrowLeft size={20} color={Colors.textPrimary} />
           </TouchableOpacity>
 
-          <View style={styles.stepBadge}>
-            <Text style={styles.stepBadgeText}>
-              {language === 'kn' ? `ಹಂತ ${step} / 4` : `Step ${step} of 4`}
+          <View style={styles.headerStepPill}>
+            <Sparkles size={13} color={Colors.primary} />
+            <Text style={styles.headerStepText}>
+              {isKn ? 'ಹಂತ 2: ವಿವರ' : 'Step 2: Profile'}
             </Text>
           </View>
 
-          <View style={{ width: 40 }} />
+          <View style={{ width: 36 }} />
         </View>
 
-        {/* Dynamic Step Content */}
         <ScrollView
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ==================== STEP 1: NAME ==================== */}
-          {step === 1 && (
-            <View style={styles.stepContainer}>
-              <View style={styles.iconCircle}>
-                <User size={40} color={Colors.primary} />
-              </View>
-
-              <Text style={styles.title}>
-                {language === 'kn' ? 'ನಿಮ್ಮ ಹೆಸರು ನಮೂದಿಸಿ' : 'What is your Name?'}
+          {/* Active Role Card Badge */}
+          <View style={[styles.roleBadgeBanner, { backgroundColor: roleMeta.bg, borderColor: roleMeta.color }]}>
+            <View style={[styles.roleIconWrap, { backgroundColor: roleMeta.color }]}>
+              <RoleIcon size={18} color="#FFFFFF" strokeWidth={2.4} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.roleBadgeTitle, { color: roleMeta.color }]}>
+                {isKn ? roleMeta.titleKn : roleMeta.titleEn}
               </Text>
-              <Text style={styles.subtitle}>
-                {language === 'kn'
-                  ? 'ನಿಮ್ಮ ಕೃಷಿ ಖಾತೆಗೆ ಹೆಸರು ಸೇರಿಸಿ'
-                  : 'Enter your name to personalize your farm dashboard'}
+              <Text style={styles.roleBadgeSub}>
+                {isKn ? 'ಆಯ್ಕೆಮಾಡಿದ ಪಾತ್ರ' : 'Selected Persona'}
               </Text>
+            </View>
+            <CheckCircle2 size={18} color={roleMeta.color} />
+          </View>
 
-              <View style={styles.inputCard}>
-                <Text style={styles.inputLabel}>
-                  {language === 'kn' ? 'ಪೂರ್ಣ ಹೆಸರು (Full Name)' : 'Full Name'}
-                </Text>
+          {/* Heading */}
+          <View style={styles.titleSection}>
+            <Text style={styles.screenTitle}>
+              {isKn ? 'ನಿಮ್ಮ ವೈಯಕ್ತಿಕ ವಿವರ' : 'Enter Your Profile Details'}
+            </Text>
+            <Text style={styles.screenSubtitle}>
+              {isKn
+                ? 'ಕೃಷಿಪ್ರಜ್ಞಾ ಸೇವೆಗಳು ಮತ್ತು ದೃಢೀಕರಣಕ್ಕಾಗಿ ನಿಮ್ಮ ಹೆಸರು ಮತ್ತು ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನೀಡಿ.'
+                : 'Enter your details to create your verified KrushiPragya profile.'}
+            </Text>
+          </View>
+
+          {/* Error Message */}
+          {errorMessage ? (
+            <View style={styles.errorBox}>
+              <AlertCircle size={16} color="#DC2626" />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
+
+          {/* Form Section */}
+          <View style={styles.formCard}>
+            {/* 1. Full Name */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>
+                {isKn ? '1. ಪೂರ್ಣ ಹೆಸರು (Full Name)' : '1. Full Name'}
+              </Text>
+              <View style={styles.inputBox}>
+                <User size={18} color={Colors.primary} />
                 <TextInput
                   style={styles.textInput}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder={language === 'kn' ? 'ಉದಾ: ಅಭಿ ಗೌಡ' : 'e.g. Abhi Gowda'}
+                  placeholder={isKn ? 'ಉದಾ: ಅಭಿ ಗೌಡ (Abhi Gowda)' : 'e.g. Abhi Gowda'}
                   placeholderTextColor={Colors.textMuted}
+                  value={fullName}
+                  onChangeText={(t) => {
+                    setFullName(t);
+                    if (errorMessage) setErrorMessage('');
+                  }}
+                  autoCapitalize="words"
                 />
               </View>
             </View>
-          )}
 
-          {/* ==================== STEP 2: VILLAGE WITH CURRENT LOCATION ==================== */}
-          {step === 2 && (
-            <View style={styles.stepContainer}>
-              <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7', borderColor: '#FED7AA' }]}>
-                <MapPin size={40} color={Colors.accentGold} />
-              </View>
-
-              <Text style={styles.title}>
-                {language === 'kn' ? 'ನಿಮ್ಮ ಗ್ರಾಮ ಆಯ್ಕೆಮಾಡಿ' : 'Select Your Village'}
+            {/* 2. Mobile Number */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>
+                {isKn ? '2. ಮೊಬೈಲ್ ಸಂಖ್ಯೆ (Mobile Number)' : '2. Mobile Number'}
               </Text>
-              <Text style={styles.subtitle}>
-                {language === 'kn'
-                  ? 'ಸ್ಥಳೀಯ ಹವಾಮಾನ ಮತ್ತು ಮಾರುಕಟ್ಟೆ ಮಾಹಿತಿಗಾಗಿ'
-                  : 'For hyper-local weather alerts and market price insights'}
-              </Text>
-
-              {/* 1-Tap Use Current GPS Location Button */}
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={handleUseCurrentLocation}
-                disabled={isDetectingLocation}
-                style={styles.currentLocationBtn}
-              >
-                {isDetectingLocation ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                ) : (
-                  <Navigation size={18} color={Colors.primary} />
-                )}
-                <Text style={styles.currentLocationText}>
-                  {language === 'kn'
-                    ? '📍 ಪ್ರಸ್ತುತ ಸ್ಥಳವನ್ನು ಬಳಸಿ (Use Current Location)'
-                    : '📍 Use Current Location'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Village Search Bar */}
-              <View style={styles.searchBox}>
-                <Search size={18} color={Colors.textMuted} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder={language === 'kn' ? '🔍 ಗ್ರಾಮ ಅಥವಾ ತಾಲೂಕು ಹುಡುಕಿ...' : 'Search village or district...'}
-                  placeholderTextColor={Colors.textMuted}
-                  value={villageSearch}
-                  onChangeText={setVillageSearch}
-                />
-              </View>
-
-              {/* Village List */}
-              <View style={styles.listContainer}>
-                {filteredVillages.map((v) => {
-                  const isSelected = selectedVillage.id === v.id;
-                  return (
-                    <TouchableOpacity
-                      key={v.id}
-                      activeOpacity={0.8}
-                      onPress={() => setSelectedVillage(v)}
-                      style={[
-                        styles.villageItem,
-                        isSelected && styles.villageItemSelected,
-                      ]}
-                    >
-                      <View style={styles.villageTextCol}>
-                        <Text style={[styles.villageName, isSelected && styles.villageNameSelected]}>
-                          {language === 'kn' ? v.nameKn : v.nameEn}
-                        </Text>
-                        <Text style={styles.districtName}>{v.district} District</Text>
-                      </View>
-
-                      {isSelected ? (
-                        <CheckCircle2 size={24} color={Colors.primary} />
-                      ) : (
-                        <Circle size={24} color={Colors.borderDark} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* ==================== STEP 3: LAND ACRES ==================== */}
-          {step === 3 && (
-            <View style={styles.stepContainer}>
-              <View style={[styles.iconCircle, { backgroundColor: Colors.trustPurpleLight, borderColor: '#D8D5FB' }]}>
-                <Trees size={40} color={Colors.trustPurple} />
-              </View>
-
-              <Text style={styles.title}>
-                {language === 'kn' ? 'ನಿಮ್ಮ ಕೃಷಿ ಜಮೀನು' : 'Farm Land Size'}
-              </Text>
-              <Text style={styles.subtitle}>
-                {language === 'kn'
-                  ? 'ನಿಮ್ಮ ತೋಟ ಅಥವಾ ಗದ್ದೆಯ ಒಟ್ಟು ವಿಸ್ತೀರ್ಣ'
-                  : 'Total cultivated agricultural land in acres'}
-              </Text>
-
-              <View style={styles.landCard}>
-                <Text style={styles.landLabel}>
-                  {language === 'kn' ? 'ಜಮೀನಿನ ವಿಸ್ತೀರ್ಣ (Acres)' : 'Total Land (Acres)'}
-                </Text>
-                <View style={styles.landInputRow}>
-                  <TextInput
-                    style={styles.landInput}
-                    value={landAcres}
-                    onChangeText={setLandAcres}
-                    keyboardType="decimal-pad"
-                    maxLength={5}
-                  />
-                  <View style={styles.acreUnitBox}>
-                    <Text style={styles.acreUnitText}>
-                      {language === 'kn' ? 'ಎಕರೆ (Acres)' : 'Acres'}
-                    </Text>
-                  </View>
+              <View style={styles.phoneInputRow}>
+                <View style={styles.countryCodeBox}>
+                  <Phone size={16} color={Colors.primary} />
+                  <Text style={styles.countryCodeText}>+91</Text>
                 </View>
+                <TextInput
+                  style={styles.phoneTextInput}
+                  placeholder={isKn ? '10 ಅಂಕಿಗಳ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ' : '10-digit number'}
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phoneNumber}
+                  onChangeText={(t) => {
+                    setPhoneNumber(t);
+                    if (errorMessage) setErrorMessage('');
+                  }}
+                />
               </View>
-            </View>
-          )}
-
-          {/* ==================== STEP 4: CROP SELECTION ==================== */}
-          {step === 4 && (
-            <View style={styles.stepContainer}>
-              <View style={styles.iconCircle}>
-                <Sprout size={40} color={Colors.primary} />
-              </View>
-
-              <Text style={styles.title}>
-                {language === 'kn' ? 'ನೀವು ಯಾವ ಬೆಳೆಗಳನ್ನು ಬೆಳೆಯುತ್ತೀರಿ?' : 'Which Crops Do You Grow?'}
+              <Text style={styles.helperText}>
+                {isKn
+                  ? '🔒 ಮುಂದಿನ ಹಂತದಲ್ಲಿ ಈ ಸಂಖ್ಯೆಗೆ 6 ಅಂಕಿಗಳ OTP ಕಳುಹಿಸಲಾಗುವುದು.'
+                  : '🔒 A 6-digit OTP will be verified in the next step.'}
               </Text>
-              <Text style={styles.subtitle}>
-                {language === 'kn'
-                  ? 'ನಿಮ್ಮ ಮುಖ್ಯ ಬೆಳೆಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ (Multi-select)'
-                  : 'Select the crops grown on your farm'}
-              </Text>
-
-              <View style={styles.cropsGrid}>
-                {CROPS_LIST.map((crop) => {
-                  const isSelected = selectedCrops.includes(crop.id);
-                  return (
-                    <TouchableOpacity
-                      key={crop.id}
-                      activeOpacity={0.85}
-                      onPress={() => toggleCrop(crop.id)}
-                      style={[
-                        styles.cropCardItem,
-                        isSelected && styles.cropCardItemSelected,
-                      ]}
-                    >
-                      <Text style={styles.cropEmoji}>{crop.emoji}</Text>
-                      <View style={styles.cropTextCol}>
-                        <Text style={[styles.cropName, isSelected && styles.cropNameSelected]}>
-                          {language === 'kn' ? crop.nameKn : crop.nameEn}
-                        </Text>
-                        <Text style={styles.cropSubName}>
-                          {language === 'kn' ? crop.nameEn : crop.nameKn}
-                        </Text>
-                      </View>
-
-                      {isSelected ? (
-                        <CheckCircle2 size={22} color={Colors.primary} />
-                      ) : (
-                        <Circle size={22} color={Colors.borderDark} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
             </View>
-          )}
+          </View>
+
+          {/* Bottom Security / Trust Pill */}
+          <View style={styles.trustBadge}>
+            <ShieldCheck size={16} color="#16A34A" />
+            <Text style={styles.trustBadgeText}>
+              {isKn
+                ? 'ಸುರಕ್ಷಿತ Supabase & PostgreSQL ಅಧಿಕೃತ ವ್ಯವಸ್ಥೆ'
+                : 'Secured with Supabase Auth & PostgreSQL RBAC'}
+            </Text>
+          </View>
         </ScrollView>
 
-        {/* Bottom CTA Button */}
-        <View style={styles.bottomSection}>
+        {/* Bottom Sticky Action Button */}
+        <View style={styles.bottomBar}>
           <Button
-            title={
-              step === 4
-                ? (language === 'kn' ? 'ಪ್ರಾರಂಭಿಸಿ (Done)' : 'Finish Setup')
-                : (language === 'kn' ? 'ಮುಂದುವರಿಸಿ (Next)' : 'Continue')
-            }
-            onPress={handleNext}
+            title={isKn ? 'ಮುಂದುವರಿಸಿ (OTP ಪಡೆಯಿರಿ)' : 'Get OTP & Continue'}
+            onPress={handleContinue}
             size="large"
             icon={<ChevronRight size={20} color={Colors.textWhite} />}
+            style={styles.continueBtn}
           />
         </View>
       </KeyboardAvoidingView>
@@ -391,253 +289,196 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    justifyContent: 'space-between',
   },
   topBar: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl,
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: Colors.surface,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  stepBadge: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+  headerStepPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#BBF7D0',
   },
-  stepBadgeText: {
-    ...Typography.caption,
+  headerStepText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: Colors.primaryDark,
+    color: '#166534',
   },
   scrollContent: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.xl,
-  },
-  stepContainer: {
-    alignItems: 'center',
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-    borderWidth: 1.5,
-    borderColor: '#BFE7D7',
-  },
-  title: {
-    ...Typography.display,
-    fontSize: 24,
-    color: Colors.textPrimary,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  subtitle: {
-    ...Typography.bodyLarge,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.sm,
-  },
-  currentLocationBtn: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  currentLocationText: {
-    ...Typography.bodyLarge,
-    fontWeight: '800',
-    color: Colors.primaryDark,
-  },
-  inputCard: {
-    width: '100%',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    gap: Spacing.xs,
-  },
-  inputLabel: {
-    ...Typography.bodyLarge,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  textInput: {
-    height: 52,
-    backgroundColor: Colors.surfaceSubtle,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    ...Typography.title2,
-    color: Colors.textPrimary,
-    fontWeight: '700',
-  },
-  searchBox: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    height: 50,
-    marginBottom: Spacing.md,
-  },
-  searchInput: {
-    flex: 1,
-    ...Typography.bodyLarge,
-    color: Colors.textPrimary,
-  },
-  listContainer: {
-    width: '100%',
-    gap: Spacing.xs,
-  },
-  villageItem: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-  },
-  villageItemSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
-  },
-  villageTextCol: {
-    flex: 1,
-  },
-  villageName: {
-    ...Typography.bodyLarge,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  villageNameSelected: {
-    color: Colors.primaryDark,
-  },
-  districtName: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  landCard: {
-    width: '100%',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    gap: Spacing.sm,
-  },
-  landLabel: {
-    ...Typography.bodyLarge,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  landInputRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  landInput: {
-    flex: 1,
-    height: 56,
-    backgroundColor: Colors.surfaceSubtle,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    fontSize: 24,
-    fontWeight: '900',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  acreUnitBox: {
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#BFE7D7',
-  },
-  acreUnitText: {
-    ...Typography.bodyLarge,
-    fontWeight: '800',
-    color: Colors.primaryDark,
-  },
-  cropsGrid: {
-    width: '100%',
-    gap: Spacing.xs,
-  },
-  cropCardItem: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.md,
+  },
+  roleBadgeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: BorderRadius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    gap: 12,
   },
-  cropCardItemSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
+  roleIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cropEmoji: {
-    fontSize: 28,
-  },
-  cropTextCol: {
-    flex: 1,
-  },
-  cropName: {
-    ...Typography.bodyLarge,
+  roleBadgeTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: Colors.textPrimary,
   },
-  cropNameSelected: {
-    color: Colors.primaryDark,
-  },
-  cropSubName: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+  roleBadgeSub: {
+    fontSize: 11,
+    color: '#64748B',
     marginTop: 1,
   },
-  bottomSection: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.lg,
-    paddingTop: Spacing.xs,
+  titleSection: {
+    gap: 4,
+  },
+  screenTitle: {
+    ...Typography.display,
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  screenSubtitle: {
+    ...Typography.bodyLarge,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    padding: 10,
+    borderRadius: BorderRadius.sm,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B91C1C',
+    flex: 1,
+  },
+  formCard: {
+    backgroundColor: Colors.surface,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    height: 48,
+    gap: 10,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  countryCodeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  countryCodeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  phoneTextInput: {
+    flex: 1,
+    height: 48,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  trustBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+  },
+  trustBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  bottomBar: {
+    padding: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  continueBtn: {
+    width: '100%',
   },
 });

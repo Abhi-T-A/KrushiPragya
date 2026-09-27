@@ -22,6 +22,8 @@ export interface CropReport {
   remedyKn?: string;
   remedyEn?: string;
   culturalControl?: string;
+  explanationKn?: string;
+  approvedActions?: string[];
   sourceInstitution?: string;
   evidenceFarmsCount?: number;
   verifiedBy?: string;

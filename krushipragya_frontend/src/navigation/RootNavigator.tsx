@@ -21,6 +21,7 @@ import { ReportListScreen } from '../screens/history/ReportListScreen';
 import { WeatherScreen } from '../screens/weather/WeatherScreen';
 import { MarketScreen } from '../screens/market/MarketScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { AdvisoryScreen } from '../screens/advisory/AdvisoryScreen';
 
 // Government Schemes Screens
 import { SchemesHomeScreen } from '../screens/schemes/SchemesHomeScreen';
@@ -32,7 +33,7 @@ import {
   Home as HomeIcon,
   Camera as CameraIcon,
   Landmark as SchemesIcon,
-  CloudSun as WeatherIcon,
+  Sprout as AdvisoryIcon,
   TrendingUp as MarketIcon,
 } from 'lucide-react-native';
 
@@ -153,14 +154,14 @@ const BottomTabs = () => {
         }}
       />
 
-      {/* 4. Weather & Advisory Tab */}
+      {/* 4. Advisory Tab (ಸಲಹೆ) */}
       <Tab.Screen
-        name="WeatherTab"
-        component={WeatherScreen}
+        name="AdvisoryTab"
+        component={AdvisoryScreen}
         options={{
           tabBarLabel: isKn ? 'ಸಲಹೆ' : 'Advisory',
           tabBarIcon: ({ color, focused }) => (
-            <WeatherIcon size={20} color={color} strokeWidth={focused ? 2.3 : 1.8} />
+            <AdvisoryIcon size={20} color={color} strokeWidth={focused ? 2.3 : 1.8} />
           ),
         }}
       />
@@ -186,6 +187,9 @@ export const RootNavigator = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={BottomTabs} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="WeatherDetails" component={WeatherScreen} />
+      <Stack.Screen name="WeatherTab" component={AdvisoryScreen} />
+      <Stack.Screen name="AdvisoryTab" component={AdvisoryScreen} />
       <Stack.Screen name="HistoryTab" component={SchemesStackNavigator} />
     </Stack.Navigator>
   );

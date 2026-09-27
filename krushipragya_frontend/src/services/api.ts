@@ -63,7 +63,18 @@ export interface LiveWeather {
 
 export const fetchLiveWeather = async (villageId: string = 'V001'): Promise<LiveWeather | null> => {
   try {
-    const res = await api.get(`/weather/forecast?village_id=${villageId}`);
+    const rawId = (villageId || 'V001').trim();
+    const cleanId = (rawId.toLowerCase() === 'v2' || rawId.toLowerCase() === 'ujire')
+      ? 'V001'
+      : (rawId.toLowerCase() === 'v1' || rawId.toLowerCase() === 'brahmavar')
+      ? 'V002'
+      : (rawId.toLowerCase() === 'v3' || rawId.toLowerCase() === 'thirthahalli')
+      ? 'V004'
+      : rawId.toUpperCase().startsWith('V0')
+      ? rawId.toUpperCase()
+      : 'V001';
+
+    const res = await api.get(`/weather/forecast?village_id=${cleanId}`);
     const forecast = res.data?.forecast;
     if (forecast && forecast.length > 0) {
       const current = forecast[0];

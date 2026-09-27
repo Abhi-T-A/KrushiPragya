@@ -95,3 +95,5 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+// Root entry updated for Advisory UI
+

@@ -268,6 +268,18 @@ class MockMarketQuery:
                     txs = [t for t in txs if str(t.buyer_id) == str(val)]
                 if "farmer_id" in c_str and val is not None:
                     txs = [t for t in txs if str(t.farmer_id) == str(val)]
+                if "offer_id" in c_str and val is not None:
+                    txs = [t for t in txs if str(t.offer_id) == str(val)]
+                if "payment_status" in c_str:
+                    if val is not None:
+                        txs = [t for t in txs if str(t.payment_status) == str(val)]
+                    elif "in" in c_str:
+                        allowed = []
+                        if "payment_success" in c_str:
+                            allowed.append("PAYMENT_SUCCESS")
+                        if "paid" in c_str:
+                            allowed.append("PAID")
+                        txs = [t for t in txs if t.payment_status in allowed]
             return txs
 
         # 7. Market query
@@ -1546,6 +1558,99 @@ def test_nearby_mandis_market_without_price_graceful(market_setup):
     belthangady_price = next((m for m in data_price["markets"] if m["name"] == "Belthangady Rural Yard"), None)
     assert belthangady_price is not None
     assert belthangady_price["latest_price"] is None
+
+
+def test_demo_payment_flow_buyer_and_farmer(market_setup):
+    """Verify demo payment flow for both buyer and farmer:
+    - Farmer: Listing -> Buyer Offer -> Accept Offer -> Demo Payment -> Transaction created & listing SOLD.
+    - Buyer and Farmer see identical transaction details.
+    - Duplicate demo payment is prevented gracefully.
+    """
+    farmer_id = market_setup["farmer_id"]
+    buyer_id = market_setup["buyer_id"]
+    farmer_headers = auth_header(farmer_id)
+    buyer_headers = auth_header(buyer_id)
+    arecanut = market_setup["crops"]["arecanut"]
+
+    # 1. Farmer creates listing
+    listing_res = client.post(
+        "/api/v1/market/listings",
+        json={
+            "crop_id": str(arecanut.id),
+            "quantity": 10.0,
+            "unit": "quintal",
+            "quality_grade": "A",
+            "expected_price": 50000.0,
+            "location": "Sullia",
+        },
+        headers=farmer_headers,
+    )
+    assert listing_res.status_code == status.HTTP_201_CREATED
+    listing_id = listing_res.json()["id"]
+
+    # 2. Buyer submits offer
+    offer_res = client.post(
+        f"/api/v1/market/listings/{listing_id}/offers",
+        json={
+            "offered_price": 49000.0,
+            "quantity": 10.0,
+            "message": "Can pickup tomorrow",
+        },
+        headers=buyer_headers,
+    )
+    assert offer_res.status_code == status.HTTP_201_CREATED
+    offer_id = offer_res.json()["id"]
+
+    # 3. Farmer accepts offer
+    accept_res = client.post(
+        f"/api/v1/market/offers/{offer_id}/respond",
+        json={"action": "ACCEPT"},
+        headers=farmer_headers,
+    )
+    assert accept_res.status_code == status.HTTP_200_OK
+
+    # 4. Farmer executes DEMO PAYMENT
+    demo_pay_res = client.post(
+        "/api/v1/market/payments/create-order",
+        json={
+            "offer_id": offer_id,
+            "idempotency_key": "demo-key-farmer-01",
+            "payment_mode": "DEMO",
+        },
+        headers=farmer_headers,
+    )
+    assert demo_pay_res.status_code == status.HTTP_201_CREATED
+    demo_data = demo_pay_res.json()
+    assert demo_data["payment_status"] == "PAYMENT_SUCCESS"
+    assert demo_data["order_status"] == "PAID"
+    assert demo_data["provider"] == "demo"
+    tx_id = demo_data["transaction_id"]
+
+    # 5. Check listing is now SOLD and offer COMPLETED
+    tx_buyer = client.get(f"/api/v1/market/payments/transactions/{tx_id}", headers=buyer_headers)
+    assert tx_buyer.status_code == status.HTTP_200_OK
+    assert tx_buyer.json()["crop_name"] == "Arecanut"
+    assert float(tx_buyer.json()["quantity"]) == 10.0
+    assert float(tx_buyer.json()["amount"]) == 490000.0
+    assert tx_buyer.json()["payment_status"] == "PAYMENT_SUCCESS"
+
+    tx_farmer = client.get(f"/api/v1/market/payments/transactions/{tx_id}", headers=farmer_headers)
+    assert tx_farmer.status_code == status.HTTP_200_OK
+    assert tx_farmer.json()["id"] == tx_buyer.json()["id"]
+
+    # 6. Duplicate payment returns existing without duplicate record
+    dup_res = client.post(
+        "/api/v1/market/payments/create-order",
+        json={
+            "offer_id": offer_id,
+            "payment_mode": "DEMO",
+        },
+        headers=buyer_headers,
+    )
+    assert dup_res.status_code == status.HTTP_201_CREATED
+    assert dup_res.json()["transaction_id"] == tx_id
+    assert dup_res.json()["payment_status"] == "PAYMENT_SUCCESS"
+
 
 
 

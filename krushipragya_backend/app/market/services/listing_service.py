@@ -194,48 +194,37 @@ class ProduceListingService:
                 farmer_lat = village.latitude
                 farmer_lon = village.longitude
 
-        # Find latest price records for this crop across all active mandis
-        latest_prices = (
-            db.query(MarketPriceRecord)
+        # Find latest price records for this crop across active mandis joined with Market
+        price_and_market = (
+            db.query(MarketPriceRecord, Market)
+            .join(Market, MarketPriceRecord.market_id == Market.id)
             .filter(MarketPriceRecord.crop_id == listing.crop_id)
             .order_by(desc(MarketPriceRecord.arrival_date))
+            .limit(10)
             .all()
         )
 
-        if not latest_prices:
+        if not price_and_market:
             return None
 
-        # Pick the nearest mandi if coordinates exist, or the latest reported mandi
-        best_record: Optional[MarketPriceRecord] = None
+        best_record, best_mandi = price_and_market[0]
         min_dist: Optional[float] = None
 
         if farmer_lat is not None and farmer_lon is not None:
-            # Rank by distance to farmer
             closest_dist = float("inf")
-            for prec in latest_prices:
-                mandi = db.get(Market, prec.market_id)
-                if not mandi:
-                    continue
+            for prec, mandi in price_and_market:
                 d = haversine_distance_km(farmer_lat, farmer_lon, mandi.latitude, mandi.longitude)
                 if d < closest_dist:
                     closest_dist = d
                     best_record = prec
+                    best_mandi = mandi
                     min_dist = d
-        else:
-            best_record = latest_prices[0]
-
-        if not best_record:
-            return None
-
-        mandi = db.get(Market, best_record.market_id)
-        if not mandi:
-            return None
 
         return ReferenceMandiPrice(
-            mandi_name=mandi.name,
-            mandi_id=mandi.id,
-            district=mandi.district,
-            state=mandi.state,
+            mandi_name=best_mandi.name,
+            mandi_id=best_mandi.id,
+            district=best_mandi.district,
+            state=best_mandi.state,
             distance_km=min_dist,
             min_price=best_record.min_price,
             modal_price=best_record.modal_price,

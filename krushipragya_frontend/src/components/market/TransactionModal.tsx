@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import {
   TransactionDetail,
   createPaymentOrder,
   verifyPaymentSignature,
+  fetchMarketPaymentStatus,
+  fetchTransactionDetail,
 } from '../../services/marketApi';
 import {
   X,
@@ -49,6 +51,100 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [paymentStep, setPaymentStep] = useState<'initial' | 'processing' | 'success' | 'failure' | 'unconfigured'>('initial');
   const [failureMsg, setFailureMsg] = useState<string>('');
 
+  const pollingRef = useRef<any>(null);
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  const startMarketPolling = (txId: string) => {
+    stopPolling();
+    let attempts = 0;
+    const maxAttempts = 24; // 24 * 2.5s = 60s
+    pollingRef.current = setInterval(async () => {
+      attempts++;
+      try {
+        const txStatus = await fetchMarketPaymentStatus(txId, buyerId);
+        if (
+          txStatus.payment_status === 'PAID' ||
+          txStatus.payment_status === 'SUCCESS' ||
+          txStatus.status === 'PAID' ||
+          txStatus.status === 'SUCCESS'
+        ) {
+          stopPolling();
+          try {
+            const txDetail = await fetchTransactionDetail(txId, buyerId);
+            setTransaction(txDetail);
+          } catch (_) {
+            setTransaction({ id: txId } as any);
+          }
+          setPaymentStep('success');
+        } else if (
+          txStatus.payment_status === 'FAILED' ||
+          txStatus.status === 'FAILED' ||
+          txStatus.status === 'CANCELLED'
+        ) {
+          stopPolling();
+          setPaymentStep('failure');
+          setFailureMsg('ಪಾವತಿ ವಿಫಲವಾಗಿದೆ (Payment Failed)');
+        }
+      } catch (err) {
+        // continue polling until max attempts
+      }
+      if (attempts >= maxAttempts) {
+        stopPolling();
+      }
+    }, 2500);
+  };
+
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      if (
+        event.url &&
+        (event.url.includes('payment-callback') ||
+          event.url.includes('payu') ||
+          event.url.includes('market'))
+      ) {
+        if (transaction?.id) {
+          try {
+            const txStatus = await fetchMarketPaymentStatus(transaction.id, buyerId);
+            if (
+              txStatus.payment_status === 'PAID' ||
+              txStatus.payment_status === 'SUCCESS' ||
+              txStatus.status === 'PAID' ||
+              txStatus.status === 'SUCCESS'
+            ) {
+              stopPolling();
+              setPaymentStep('success');
+            } else if (
+              txStatus.payment_status === 'FAILED' ||
+              txStatus.status === 'FAILED'
+            ) {
+              stopPolling();
+              setPaymentStep('failure');
+              setFailureMsg('ಪಾವತಿ ವಿಫಲವಾಗಿದೆ (Payment Failed)');
+            }
+          } catch (_) {}
+        }
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleDeepLink);
+    return () => {
+      sub.remove();
+      stopPolling();
+    };
+  }, [transaction?.id, buyerId]);
+
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, []);
+
   if (!visible || !offerItem) return null;
 
   const { offer, listing, contact_phone, contact_name } = offerItem;
@@ -70,16 +166,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         return;
       }
 
+      if (orderResp.transaction_id) {
+        setTransaction({ id: orderResp.transaction_id } as any);
+      }
+
       // If PayU checkout data is provided, open secure PayU hosted checkout
-      if (orderResp.checkout_data?.action_url && orderResp.checkout_data?.params) {
+      if (orderResp.checkout_data) {
         try {
-          const searchParams = new URLSearchParams(orderResp.checkout_data.params as any);
-          const payuUrl = `${orderResp.checkout_data.action_url}?${searchParams.toString()}`;
-          const canOpen = await Linking.canOpenURL(payuUrl);
-          if (canOpen) {
-            await Linking.openURL(payuUrl);
-          } else {
-            Alert.alert('PayU', 'ಬ್ರೌಸರ್‌ನಲ್ಲಿ PayU ಗೇಟ್‌ವೇ ತೆರೆಯಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.');
+          const targetUrl =
+            orderResp.checkout_data.checkout_url ||
+            (orderResp.checkout_data.action_url &&
+              `${orderResp.checkout_data.action_url}?${new URLSearchParams(orderResp.checkout_data.params as any).toString()}`);
+          if (targetUrl) {
+            const canOpen = await Linking.canOpenURL(targetUrl);
+            if (canOpen) {
+              await Linking.openURL(targetUrl);
+            } else {
+              await Linking.openURL(targetUrl);
+            }
+          }
+          if (orderResp.transaction_id) {
+            startMarketPolling(orderResp.transaction_id);
           }
         } catch (e) {
           console.warn('PayU checkout open error:', e);
@@ -87,6 +194,51 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       }
     } catch (err: any) {
       const msg = err?.response?.data?.detail || err?.message || 'ಪಾವತಿ ಪ್ರಾರಂಭಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.';
+      setPaymentStep('failure');
+      setFailureMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoPayment = async () => {
+    try {
+      setLoading(true);
+      setPaymentStep('processing');
+
+      const idempotencyKey = `tx_demo_${offer.id}_${Date.now()}`;
+      const orderResp = await createPaymentOrder(buyerId, offer.id, idempotencyKey, 'DEMO');
+
+      if (orderResp.transaction_id) {
+        try {
+          const txDetail = await fetchTransactionDetail(orderResp.transaction_id, buyerId);
+          setTransaction(txDetail);
+        } catch {
+          setTransaction({
+            id: orderResp.transaction_id,
+            offer_id: orderResp.offer_id,
+            listing_id: orderResp.listing_id,
+            crop_name: (listing as any).crop_name || (listing as any).crop || 'Produce',
+            quantity: offer.quantity,
+            unit: listing.unit,
+            amount: orderResp.amount,
+            currency: orderResp.currency,
+            payment_status: orderResp.payment_status,
+            order_status: orderResp.order_status,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            buyer_id: buyerId,
+            farmer_id: listing.farmer_id,
+          } as any);
+        }
+        setPaymentStep('success');
+        onSuccess();
+      } else {
+        setPaymentStep('failure');
+        setFailureMsg('ಡೆಮೊ ಪಾವತಿ ವಿಫಲವಾಗಿದೆ.');
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'ಡೆಮೊ ಪಾವತಿ ಪ್ರಕ್ರಿಯೆಯಲ್ಲಿ ದೋಷ ಉಂಟಾಗಿದೆ.';
       setPaymentStep('failure');
       setFailureMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
     } finally {
@@ -182,7 +334,20 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   </View>
                 )}
 
-                {/* Secure Payment CTA */}
+                {/* DEMO PAYMENT CTA (Primary Hackathon Demo Flow) */}
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={handleDemoPayment}
+                  disabled={loading}
+                  style={styles.demoPayBtn}
+                >
+                  <CreditCard size={18} color="#FFFFFF" />
+                  <Text style={styles.demoPayBtnText}>
+                    💳 ಡೆಮೊ ಪಾವತಿ (DEMO PAYMENT ₹{Math.round(totalAmount).toLocaleString('en-IN')})
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Secure Gateway Payment CTA */}
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={handleInitiatePayment}
@@ -191,12 +356,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 >
                   <CreditCard size={18} color="#FFFFFF" />
                   <Text style={styles.payBtnText}>
-                    ₹{Math.round(totalAmount).toLocaleString('en-IN')} - Pay securely (ಸುರಕ್ಷಿತವಾಗಿ ಪಾವತಿಸಿ)
+                    ₹{Math.round(totalAmount).toLocaleString('en-IN')} - Pay securely (PayU Gateway)
                   </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.securityNote}>
-                  🔒 ಸರ್ವರ್-ಪರಿಶೀಲಿತ ಸುರಕ್ಷಿತ ಪಾವತಿ ಗೇಟ್‌ವೇ (PayU). ಯಾವುದೇ ನಕಲಿ ಕ್ಲೈಂಟ್ ರಶೀದಿಗಳನ್ನು ಅನುಮತಿಸುವುದಿಲ್ಲ.
+                  🔒 ಸರ್ವರ್-ಪರಿಶೀಲಿತ ಸುರಕ್ಷಿತ ಪಾವತಿ ಗೇಟ್‌ವೇ (PayU) ಮತ್ತು ಡೆಮೊ ಪಾವತಿ ವ್ಯವಸ್ಥೆ.
                 </Text>
               </>
             )}
@@ -220,6 +385,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 <Text style={styles.stateSub}>
                   {failureMsg || 'ಸರ್ವರ್‌ನಲ್ಲಿ ಪಾವತಿ ಗೇಟ್‌ವೇ ಇನ್ನೂ ಕಾನ್ಫಿಗರ್ ಮಾಡಲಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ರೈತರನ್ನು ನೇರವಾಗಿ ಸಂಪರ್ಕಿಸಿ.'}
                 </Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={handleDemoPayment}
+                  disabled={loading}
+                  style={[styles.demoPayBtn, { width: '100%', marginTop: 14 }]}
+                >
+                  <CreditCard size={18} color="#FFFFFF" />
+                  <Text style={styles.demoPayBtnText}>
+                    💳 ಡೆಮೊ ಪಾವತಿ ಮಾಡಿ (DEMO PAYMENT ₹{Math.round(totalAmount).toLocaleString('en-IN')})
+                  </Text>
+                </TouchableOpacity>
 
                 {contact_phone && (
                   <TouchableOpacity
@@ -291,8 +468,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     <Text style={styles.receiptValue}>{transaction?.id || 'TX-KP-2026'}</Text>
                   </View>
                   <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>ಬೆಳೆ:</Text>
+                    <Text style={styles.receiptValue}>{transaction?.crop_name || (listing as any).crop_name || (listing as any).crop || 'Produce'}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>ಪ್ರಮಾಣ:</Text>
+                    <Text style={styles.receiptValue}>
+                      {transaction?.quantity || offer.quantity} {transaction?.unit || listing.unit}
+                    </Text>
+                  </View>
+                  <View style={styles.receiptRow}>
                     <Text style={styles.receiptLabel}>ದಿನಾಂಕ:</Text>
                     <Text style={styles.receiptValue}>{new Date().toLocaleDateString()}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>ವಿಧಾನ:</Text>
+                    <Text style={[styles.receiptValue, { color: '#0F766E', fontWeight: '700' }]}>
+                      DEMO PAYMENT
+                    </Text>
                   </View>
                   <View style={styles.receiptRow}>
                     <Text style={styles.receiptLabel}>ಸ್ಥಿತಿ:</Text>
@@ -457,20 +650,35 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  demoPayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0F766E',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 6,
+  },
+  demoPayBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   payBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#114B32',
-    paddingVertical: 14,
+    backgroundColor: '#1E293B',
+    paddingVertical: 12,
     borderRadius: 12,
-    marginTop: 6,
+    marginTop: 8,
   },
   payBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#F8FAFC',
   },
   securityNote: {
     fontSize: 11,
@@ -478,6 +686,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
     paddingHorizontal: 8,
+    marginTop: 4,
   },
   stateContainer: {
     alignItems: 'center',

@@ -161,6 +161,7 @@ export interface PaymentOrderResponse {
   checkout_data?: {
     action_url: string;
     params: Record<string, string>;
+    checkout_url?: string;
   } | null;
   message_kn: string;
   message_en: string;
@@ -365,11 +366,12 @@ export const respondToOffer = async (
 export const createPaymentOrder = async (
   buyer_id: string,
   offer_id: string,
-  idempotency_key?: string
+  idempotency_key?: string,
+  payment_mode?: string
 ): Promise<PaymentOrderResponse> => {
   const res = await api.post<PaymentOrderResponse>(
     '/market/payments/create-order',
-    { offer_id, idempotency_key },
+    { offer_id, idempotency_key, payment_mode },
     { headers: { 'x-farmer-id': buyer_id } }
   );
   return res.data;
@@ -379,6 +381,7 @@ export const verifyPaymentSignature = async (
   buyer_id: string,
   payload: {
     transaction_id: string;
+    payment_mode?: string;
     razorpay_order_id?: string;
     razorpay_payment_id?: string;
     razorpay_signature?: string;
@@ -408,3 +411,20 @@ export const fetchMyTransactions = async (user_id: string): Promise<TransactionD
   });
   return res.data;
 };
+
+export const fetchMarketPaymentStatus = async (
+  transaction_id: string,
+  user_id: string
+): Promise<{
+  transaction_id: string;
+  status: string;
+  payment_status: string;
+  amount: number;
+  provider: string;
+}> => {
+  const res = await api.get(`/market/payments/status/${transaction_id}`, {
+    headers: { 'x-farmer-id': user_id },
+  });
+  return res.data;
+};
+

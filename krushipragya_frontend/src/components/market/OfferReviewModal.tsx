@@ -10,7 +10,7 @@ import {
   Linking,
   Alert,
 } from 'react-native';
-import { BuyerOfferItem, respondToOffer } from '../../services/marketApi';
+import { BuyerOfferItem, respondToOffer, createPaymentOrder } from '../../services/marketApi';
 import {
   X,
   Check,
@@ -21,6 +21,8 @@ import {
   ShieldCheck,
   Calendar,
   AlertCircle,
+  CreditCard,
+  CheckCircle2,
 } from 'lucide-react-native';
 
 interface OfferReviewModalProps {
@@ -39,8 +41,27 @@ export const OfferReviewModal: React.FC<OfferReviewModalProps> = ({
   onRefresh,
 }) => {
   const [actingOfferId, setActingOfferId] = useState<string | null>(null);
+  const [payingOfferId, setPayingOfferId] = useState<string | null>(null);
 
   if (!visible) return null;
+
+  const handleDemoPayment = async (offer: any, totalAmount: number) => {
+    try {
+      setPayingOfferId(offer.id);
+      const idempotencyKey = `tx_farmer_demo_${offer.id}_${Date.now()}`;
+      await createPaymentOrder(farmerId, offer.id, idempotencyKey, 'DEMO');
+      Alert.alert(
+        'ಡೆಮೊ ಪಾವತಿ ಯಶಸ್ವಿಯಾಗಿದೆ ✅',
+        `₹${Math.round(totalAmount).toLocaleString('en-IN')} ಮೊತ್ತದ ಡೆಮೊ ಪಾವತಿ ದೃಢೀಕರಿಸಲಾಗಿದೆ. ವಹಿವಾಟು ಯಶಸ್ವಿಯಾಗಿ ನವೀಕರಿಸಲಾಗಿದೆ.`
+      );
+      onRefresh();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'ಡೆಮೊ ಪಾವತಿ ವಿಫಲವಾಗಿದೆ.';
+      Alert.alert('ದೋಷ', typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setPayingOfferId(null);
+    }
+  };
 
   const handleAction = async (offerId: string, action: 'ACCEPT' | 'REJECT') => {
     try {
@@ -212,6 +233,42 @@ export const OfferReviewModal: React.FC<OfferReviewModalProps> = ({
                         </View>
                       </View>
                     ) : null}
+
+                    {/* Farmer Demo Payment Action for Accepted Offer */}
+                    {isAccepted && (
+                      <View style={styles.demoPaymentBox}>
+                        <TouchableOpacity
+                          activeOpacity={0.88}
+                          onPress={() => handleDemoPayment(offer, totalAmount)}
+                          disabled={payingOfferId === offer.id}
+                          style={styles.demoPayBtn}
+                        >
+                          {payingOfferId === offer.id ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <CreditCard size={15} color="#FFFFFF" />
+                              <Text style={styles.demoPayBtnText}>
+                                💳 ಡೆಮೊ ಪಾವತಿ ದೃಢೀಕರಿಸಿ (DEMO PAYMENT ₹{Math.round(totalAmount).toLocaleString('en-IN')})
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                        <Text style={styles.demoPayNote}>
+                          DEMO PAYMENT: ನೈಜ ಡೇಟಾಬೇಸ್ ವಹಿವಾಟನ್ನು ಸೃಷ್ಟಿಸುತ್ತದೆ ಮತ್ತು ಪಾವತಿಯನ್ನು PAID ಎಂದು ಗುರುತಿಸುತ್ತದೆ.
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Completed Transaction Status */}
+                    {offer.status === 'COMPLETED' && (
+                      <View style={styles.completedBox}>
+                        <CheckCircle2 size={16} color="#15803D" />
+                        <Text style={styles.completedText}>
+                          ✓ ವಹಿವಾಟು ಪೂರ್ಣಗೊಂಡಿದೆ • ಡೆಮೊ ಪಾವತಿ ಯಶಸ್ವಿ (PAID ₹{Math.round(totalAmount).toLocaleString('en-IN')})
+                        </Text>
+                      </View>
+                    )}
 
                     {/* Action Buttons for Pending Offer */}
                     {offer.status === 'PENDING' && (
@@ -501,5 +558,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  demoPaymentBox: {
+    marginTop: 10,
+    gap: 4,
+  },
+  demoPayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0F766E',
+    paddingVertical: 11,
+    borderRadius: 8,
+  },
+  demoPayBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  demoPayNote: {
+    fontSize: 10,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  completedBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#DCFCE7',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  completedText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803D',
+    flex: 1,
   },
 });

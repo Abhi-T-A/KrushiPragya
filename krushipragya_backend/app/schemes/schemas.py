@@ -188,7 +188,7 @@ class SchemeApplicationResponse(BaseModel):
 
 
 class SchemePaymentInitiateResponse(BaseModel):
-    """Payment order and PhonePe static QR payload for scheme application."""
+    """Payment order, PayU checkout payload, and PhonePe static QR fallback for scheme application."""
     model_config = ConfigDict(extra="ignore")
 
     transaction_id: str
@@ -197,12 +197,15 @@ class SchemePaymentInitiateResponse(BaseModel):
     scheme_title: str
     scheme_title_kn: Optional[str] = None
     payment_method: str = "PHONEPE_STATIC_QR"
+    provider: Optional[str] = "payu"
+    gateway_order_id: Optional[str] = None
+    checkout_data: Optional[Dict[str, Any]] = None
     payment_status: str
     official_fee: float
     service_fee: float
     total_amount: float
     currency: str = "INR"
-    qr_data: Dict[str, Any]
+    qr_data: Optional[Dict[str, Any]] = None
     fee_summary: Dict[str, Any]
     message_kn: str
     message_en: str

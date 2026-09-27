@@ -10,7 +10,7 @@
  * 6. Audited official receipt upon payment confirmation
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import {
   X,
@@ -33,6 +34,10 @@ import {
   QrCode,
   ArrowRight,
   ExternalLink,
+  CreditCard,
+  CheckCircle2,
+  XCircle,
+  RotateCw,
 } from 'lucide-react-native';
 
 import { SchemeDetail, SchemeApplication, SchemePaymentInitiateResponse, PaymentReceipt } from '../../types/schemes';
@@ -42,6 +47,7 @@ import {
   submitSchemePaymentProof,
   fetchSchemePaymentDetails,
   submitSchemeApplication,
+  fetchSchemePaymentStatus,
 } from '../../services/schemesApi';
 
 interface SchemePaymentModalProps {
@@ -52,7 +58,14 @@ interface SchemePaymentModalProps {
   onApplicationCompleted?: (application: SchemeApplication) => void;
 }
 
-type ModalStep = 'FEE_SUMMARY' | 'QR_PAYMENT' | 'PROOF_SUBMITTED' | 'RECEIPT';
+type ModalStep =
+  | 'FEE_SUMMARY'
+  | 'PAYU_CHECKOUT'
+  | 'QR_PAYMENT'
+  | 'PROOF_SUBMITTED'
+  | 'RECEIPT'
+  | 'PAYMENT_SUCCESS'
+  | 'PAYMENT_FAILED';
 
 export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
   visible,
@@ -71,6 +84,80 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
   const [submittedUtr, setSubmittedUtr] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
 
+  const pollingRef = useRef<any>(null);
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  const startPollingPaymentStatus = (appId: string) => {
+    stopPolling();
+    let attempts = 0;
+    const maxAttempts = 24; // 24 * 2.5s = 60s
+    pollingRef.current = setInterval(async () => {
+      attempts++;
+      try {
+        const statusData = await fetchSchemePaymentStatus(appId, user);
+        if (statusData.payment_status === 'PAID') {
+          stopPolling();
+          try {
+            const details = await fetchSchemePaymentDetails(appId, user);
+            if (details.receipt) {
+              setReceipt(details.receipt);
+            }
+          } catch (_) {}
+          setStep('PAYMENT_SUCCESS');
+        } else if (statusData.payment_status === 'FAILED') {
+          stopPolling();
+          setStep('PAYMENT_FAILED');
+        }
+      } catch (err) {
+        // Continue polling until max attempts
+      }
+      if (attempts >= maxAttempts) {
+        stopPolling();
+      }
+    }, 2500);
+  };
+
+  // Deep-link return listener for krushipragya:// deep links
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      if (
+        event.url &&
+        (event.url.includes('scheme-payment-callback') ||
+          event.url.includes('payment-callback') ||
+          event.url.includes('payu'))
+      ) {
+        if (application?.id) {
+          try {
+            const statusData = await fetchSchemePaymentStatus(application.id, user);
+            if (statusData.payment_status === 'PAID') {
+              stopPolling();
+              try {
+                const details = await fetchSchemePaymentDetails(application.id, user);
+                if (details.receipt) setReceipt(details.receipt);
+              } catch (_) {}
+              setStep('PAYMENT_SUCCESS');
+            } else if (statusData.payment_status === 'FAILED') {
+              stopPolling();
+              setStep('PAYMENT_FAILED');
+            }
+          } catch (_) {}
+        }
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleDeepLink);
+    return () => {
+      sub.remove();
+      stopPolling();
+    };
+  }, [application?.id]);
+
   // Initialize application draft on modal open
   useEffect(() => {
     if (visible && scheme) {
@@ -78,9 +165,13 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
     } else {
       resetState();
     }
+    return () => {
+      stopPolling();
+    };
   }, [visible, scheme?.id]);
 
   const resetState = () => {
+    stopPolling();
     setStep('FEE_SUMMARY');
     setLoading(false);
     setErrorMsg(null);
@@ -129,11 +220,33 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
   const serviceFeeVal = feeInfo?.krushipragya_service_fee ?? 0;
   const totalPayableVal = feeInfo?.total_payable ?? (officialFeeVal + serviceFeeVal);
 
+  const openPayUCheckout = async (checkoutData?: any) => {
+    const targetUrl =
+      checkoutData?.checkout_url ||
+      (checkoutData?.action_url &&
+        `${checkoutData.action_url}?${new URLSearchParams(checkoutData.params as any).toString()}`);
+    if (targetUrl) {
+      try {
+        const canOpen = await Linking.canOpenURL(targetUrl);
+        if (canOpen) {
+          await Linking.openURL(targetUrl);
+        } else {
+          await Linking.openURL(targetUrl);
+        }
+      } catch (e) {
+        console.warn('PayU checkout open error:', e);
+      }
+    }
+  };
+
   const handleProceedToPayment = async () => {
     if (!application) return;
 
     if (isUnknown) {
-      Alert.alert('ಪರಿಶೀಲನೆ ಅಗತ್ಯ', 'ಈ ಯೋಜನೆಯ ಶುಲ್ಕ ಮಾಹಿತಿಯನ್ನು ಅಧಿಕೃತ ಮೂಲದಿಂದ ಪರಿಶೀಲಿಸಬೇಕಾಗಿದೆ. ದಯವಿಟ್ಟು ನಂತರ ಪ್ರಯತ್ನಿಸಿ.');
+      Alert.alert(
+        'ಪರಿಶೀಲನೆ ಅಗತ್ಯ',
+        'ಈ ಯೋಜನೆಯ ಶುಲ್ಕ ಮಾಹಿತಿಯನ್ನು ಅಧಿಕೃತ ಮೂಲದಿಂದ ಪರಿಶೀಲಿಸಬೇಕಾಗಿದೆ. ದಯವಿಟ್ಟು ನಂತರ ಪ್ರಯತ್ನಿಸಿ.'
+      );
       return;
     }
 
@@ -148,13 +261,21 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
     try {
       const payRes = await initiateSchemePayment(application.id, user);
       setPaymentData(payRes);
-      setStep('QR_PAYMENT');
+
+      if (payRes.provider === 'payu' || payRes.checkout_data) {
+        setStep('PAYU_CHECKOUT');
+        await openPayUCheckout(payRes.checkout_data);
+        startPollingPaymentStatus(application.id);
+      } else {
+        setStep('QR_PAYMENT');
+      }
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.detail || err?.message || 'ಪಾವತಿ ಆದೇಶ ರಚಿಸಲು ವಿಫಲವಾಗಿದೆ.');
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleSubmitProof = async () => {
     if (!application || !paymentData) return;
@@ -221,7 +342,13 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
           <View style={styles.headerRow}>
             <View style={styles.headerTextGroup}>
               <Text style={styles.headerTitle}>
-                {step === 'RECEIPT' ? 'ಪಾವತಿ ರಶೀದಿ (Receipt)' : 'ಯೋಜನೆ ಅರ್ಜಿ & ಪಾವತಿ'}
+                {step === 'RECEIPT'
+                  ? 'ಪಾವತಿ ರಶೀದಿ (Receipt)'
+                  : step === 'PAYMENT_SUCCESS'
+                  ? 'ಪಾವತಿ ಯಶಸ್ವಿಯಾಗಿದೆ'
+                  : step === 'PAYMENT_FAILED'
+                  ? 'ಪಾವತಿ ವಿಫಲವಾಗಿದೆ'
+                  : 'ಯೋಜನೆ ಅರ್ಜಿ & ಪಾವತಿ'}
               </Text>
               <Text style={styles.headerSubtitle} numberOfLines={1}>
                 {scheme.title_kn || scheme.name}
@@ -321,10 +448,11 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
                   onPress={handleProceedToPayment}
                   accessibilityRole="button"
                 >
+                  <CreditCard size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                   <Text style={styles.primaryBtnText}>
                     {isFree
                       ? 'ಉಚಿತವಾಗಿ ಅರ್ಜಿ ಸಲ್ಲಿಸಿ (Submit Free Application)'
-                      : `ಪಾವತಿಸಲು ಮುಂದುವರಿಯಿರಿ (Pay ₹${totalPayableVal.toFixed(2)})`}
+                      : `ಪಾವತಿಸಿ (Pay ₹${totalPayableVal.toFixed(2)})`}
                   </Text>
                   <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
                 </TouchableOpacity>
@@ -357,10 +485,10 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
 
                   <View style={styles.qrMetaBox}>
                     <Text style={styles.qrMetaText}>
-                      UPI ID: <Text style={styles.qrMetaBold}>{paymentData.qr_data.upi_id}</Text>
+                      UPI ID: <Text style={styles.qrMetaBold}>{paymentData.qr_data?.upi_id}</Text>
                     </Text>
                     <Text style={styles.qrMetaText}>
-                      ಸ್ವೀಕೃತಿದಾರರು: <Text style={styles.qrMetaBold}>{paymentData.qr_data.payee_name}</Text>
+                      ಸ್ವೀಕೃತಿದಾರರು: <Text style={styles.qrMetaBold}>{paymentData.qr_data?.payee_name}</Text>
                     </Text>
                   </View>
                 </View>
@@ -480,6 +608,172 @@ export const SchemePaymentModal: React.FC<SchemePaymentModalProps> = ({
                 >
                   <Text style={styles.primaryBtnText}>ಅರ್ಜಿಯನ್ನು ಅಂತಿಮವಾಗಿ ಸಲ್ಲಿಸಿ (Submit Application)</Text>
                   <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* STEP: PAYU CHECKOUT */}
+            {step === 'PAYU_CHECKOUT' && paymentData && !loading && (
+              <View style={styles.payuContainer}>
+                <View style={styles.payuCard}>
+                  <View style={styles.payuHeader}>
+                    <CreditCard size={28} color="#16A34A" />
+                    <Text style={styles.payuTitle}>PayU ಸುರಕ್ಷಿತ ಪಾವತಿ</Text>
+                  </View>
+                  <Text style={styles.payuSubtitle}>
+                    ಬ್ರೌಸರ್‌ನಲ್ಲಿ PayU ಗೇಟ್‌ವೇ ತೆರೆಯಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಪಾವತಿ ಪೂರ್ಣಗೊಳಿಸಿ.
+                  </Text>
+
+                  {/* Authoritative Fee Display */}
+                  <View style={styles.amountBadge}>
+                    <Text style={styles.amountBadgeLabel}>ಅರ್ಜಿ ಶುಲ್ಕ:</Text>
+                    <Text style={styles.amountBadgeValue}>
+                      ₹{paymentData.total_amount ? paymentData.total_amount.toFixed(2) : totalPayableVal.toFixed(2)}
+                    </Text>
+                  </View>
+
+                  {/* Polling Indicator */}
+                  <View style={styles.pollingCard}>
+                    <ActivityIndicator size="small" color="#16A34A" />
+                    <Text style={styles.pollingText}>
+                      ಸರ್ವರ್‌ನಲ್ಲಿ ಪಾವತಿ ಸ್ಥಿತಿ ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...
+                    </Text>
+                  </View>
+
+                  <View style={styles.payuMetaBox}>
+                    <Text style={styles.payuMetaText}>
+                      ವಹಿವಾಟು ID: <Text style={styles.qrMetaBold}>{(paymentData as any).payment_reference || paymentData.transaction_id}</Text>
+                    </Text>
+                    <Text style={styles.payuMetaText}>
+                      ವಿಧಾನ: <Text style={styles.qrMetaBold}>PayU Test Gateway</Text>
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Actions */}
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={() => openPayUCheckout(paymentData.checkout_data)}
+                  accessibilityRole="button"
+                >
+                  <CreditCard size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.primaryBtnText}>ಪಾವತಿಸಿ (ಮತ್ತೆ ತೆರೆಯಿರಿ)</Text>
+                  <ExternalLink size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={async () => {
+                    if (application?.id) {
+                      setLoading(true);
+                      try {
+                        const statusData = await fetchSchemePaymentStatus(application.id, user);
+                        if (statusData.payment_status === 'PAID') {
+                          stopPolling();
+                          try {
+                            const details = await fetchSchemePaymentDetails(application.id, user);
+                            if (details.receipt) setReceipt(details.receipt);
+                          } catch (_) {}
+                          setStep('PAYMENT_SUCCESS');
+                        } else if (statusData.payment_status === 'FAILED') {
+                          stopPolling();
+                          setStep('PAYMENT_FAILED');
+                        } else {
+                          Alert.alert('ಪಾವತಿ ಸ್ಥಿತಿ', 'ಪಾವತಿ ಇನ್ನೂ ಬಾಕಿ ಇದೆ (Pending). ದಯವಿಟ್ಟು ಪಾವತಿ ಪೂರ್ಣಗೊಳಿಸಿ.');
+                        }
+                      } catch (err: any) {
+                        Alert.alert('ದೋಷ', 'ಸ್ಥಿತಿ ಪರಿಶೀಲಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }
+                  }}
+                  accessibilityRole="button"
+                >
+                  <RotateCw size={16} color="#374151" style={{ marginRight: 6 }} />
+                  <Text style={styles.secondaryBtnText}>ಸ್ಥಿತಿ ಪರಿಶೀಲಿಸಿ (Check Status)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* STEP: PAYMENT SUCCESS */}
+            {step === 'PAYMENT_SUCCESS' && !loading && (
+              <View style={styles.successContainer}>
+                <View style={styles.iconCircleGreen}>
+                  <CheckCircle2 size={44} color="#15803D" />
+                </View>
+                <Text style={styles.statusSuccessTitle}>✓ ಪಾವತಿ ಯಶಸ್ವಿಯಾಗಿದೆ</Text>
+                <Text style={styles.statusSuccessSubtitle}>
+                  ನಿಮ್ಮ ಅರ್ಜಿ ಶುಲ್ಕದ ಪಾವತಿಯನ್ನು ಅಧಿಕೃತವಾಗಿ ಸರ್ವರ್ ದೃಢಪಡಿಸಿದೆ.
+                </Text>
+
+                <View style={styles.summaryCard}>
+                  <View style={styles.feeRow}>
+                    <Text style={styles.feeLabel}>ಅರ್ಜಿ ಶುಲ್ಕ:</Text>
+                    <Text style={[styles.feeValue, { color: '#16A34A', fontWeight: '800' }]}>
+                      ₹{(paymentData?.total_amount ?? totalPayableVal).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.feeRow}>
+                    <Text style={styles.feeLabel}>ಅರ್ಜಿ ID:</Text>
+                    <Text style={styles.feeValue}>{application?.id?.slice(0, 8)}...</Text>
+                  </View>
+                  <View style={styles.feeRow}>
+                    <Text style={styles.feeLabel}>ಸ್ಥಿತಿ:</Text>
+                    <Text style={[styles.feeValue, { color: '#15803D', fontWeight: '700' }]}>
+                      PAID (ಪಾವತಿಸಲಾಗಿದೆ)
+                    </Text>
+                  </View>
+                </View>
+
+                {receipt ? (
+                  <TouchableOpacity
+                    style={styles.secondaryBtn}
+                    onPress={() => setStep('RECEIPT')}
+                    accessibilityRole="button"
+                  >
+                    <FileText size={16} color="#374151" style={{ marginRight: 6 }} />
+                    <Text style={styles.secondaryBtnText}>ರಶೀದಿ ವೀಕ್ಷಿಸಿ (View Receipt)</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { marginTop: 12 }]}
+                  onPress={handleSubmitApplication}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.primaryBtnText}>ಅರ್ಜಿಯನ್ನು ಅಂತಿಮವಾಗಿ ಸಲ್ಲಿಸಿ (Submit Application)</Text>
+                  <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* STEP: PAYMENT FAILED */}
+            {step === 'PAYMENT_FAILED' && !loading && (
+              <View style={styles.failedContainer}>
+                <View style={styles.iconCircleRed}>
+                  <XCircle size={44} color="#DC2626" />
+                </View>
+                <Text style={styles.statusFailedTitle}>✕ ಪಾವತಿ ವಿಫಲವಾಗಿದೆ</Text>
+                <Text style={styles.statusFailedSubtitle}>
+                  ಪಾವತಿ ಪ್ರಕ್ರಿಯೆ ಪೂರ್ಣಗೊಳ್ಳಲಿಲ್ಲ ಅಥವಾ ರದ್ದುಗೊಂಡಿದೆ. ಯಾವುದೇ ಮೊತ್ತ ಕಡಿತಗೊಂಡಿಲ್ಲ.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { marginTop: 16 }]}
+                  onPress={handleProceedToPayment}
+                  accessibilityRole="button"
+                >
+                  <RotateCw size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.primaryBtnText}>ಮತ್ತೆ ಪಾವತಿಸಿ (Retry Payment)</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={() => setStep('FEE_SUMMARY')}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.secondaryBtnText}>ಹಿಂತಿರುಗಿ (Back to Summary)</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -882,5 +1176,129 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#16A34A',
+  },
+  payuContainer: {
+    paddingVertical: 8,
+  },
+  payuCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  payuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  payuTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  payuSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  pollingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 14,
+    gap: 10,
+  },
+  pollingText: {
+    fontSize: 13,
+    color: '#15803D',
+    fontWeight: '500',
+  },
+  payuMetaBox: {
+    marginTop: 14,
+    alignItems: 'center',
+  },
+  payuMetaText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginVertical: 2,
+  },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  secondaryBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  successContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    width: '100%',
+  },
+  iconCircleGreen: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statusSuccessTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#15803D',
+    textAlign: 'center',
+  },
+  statusSuccessSubtitle: {
+    fontSize: 13,
+    color: '#4B5563',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  failedContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    width: '100%',
+  },
+  iconCircleRed: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statusFailedTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+  statusFailedSubtitle: {
+    fontSize: 13,
+    color: '#4B5563',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+    paddingHorizontal: 16,
   },
 });

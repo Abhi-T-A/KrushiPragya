@@ -105,12 +105,19 @@ export interface SchemePaymentInitiateResponse {
   scheme_title: string;
   scheme_title_kn?: string | null;
   payment_method: string;
+  provider?: string;
+  gateway_order_id?: string;
+  checkout_data?: {
+    action_url: string;
+    params: Record<string, string>;
+    checkout_url?: string;
+  } | null;
   payment_status: string;
   official_fee: number;
   service_fee: number;
   total_amount: number;
   currency: string;
-  qr_data: {
+  qr_data?: {
     upi_id: string;
     payee_name: string;
     amount: number;
@@ -118,7 +125,7 @@ export interface SchemePaymentInitiateResponse {
     transaction_note: string;
     qr_asset_path: string;
     payment_flow: string;
-  };
+  } | null;
   fee_summary: {
     official_fee: number;
     krushipragya_service_fee: number;

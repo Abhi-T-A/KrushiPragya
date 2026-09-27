@@ -155,13 +155,20 @@ class SchemePaymentService:
         farmer_id: uuid.UUID,
         application_id: uuid.UUID,
     ) -> SchemePaymentInitiateResponse:
-        """Calculate authoritative amount and return PhonePe Static QR checkout data."""
+        """Calculate authoritative amount and return PayU checkout / PhonePe QR data."""
+        from app.market.services.payment_provider import get_payment_provider
         app = db.get(SchemeApplication, application_id)
         if not app:
             raise ValueError(f"Scheme application '{application_id}' not found.")
 
         if app.farmer_id != farmer_id:
             raise PermissionError("Access forbidden: You do not own this scheme application.")
+
+        if app.status in ("REJECTED", "CANCELLED"):
+            raise ValueError(f"Cannot pay for an application with status '{app.status}'.")
+
+        if app.payment_status == "PAID":
+            raise ValueError("This scheme application has already been paid.")
 
         scheme = db.get(GovernmentScheme, app.scheme_id)
         if not scheme:
@@ -174,7 +181,7 @@ class SchemePaymentService:
                 "Fee information needs verification. Online payment cannot proceed until fees are officially verified."
             )
 
-        if not fee_info.payment_required or fee_info.total_payable == 0.0:
+        if not fee_info.payment_required or fee_info.total_payable == 0.0 or fee_info.total_payable is None:
             raise ValueError("ಈ ಯೋಜನೆಗೆ ಯಾವುದೇ ಪಾವತಿ ಅಗತ್ಯವಿಲ್ಲ. (No payment is required for this scheme.)")
 
         # Check existing transaction
@@ -191,6 +198,59 @@ class SchemePaymentService:
         off_dec = Decimal(str(fee_info.official_fee or 0.0))
         srv_dec = Decimal(str(fee_info.krushipragya_service_fee or 0.0))
 
+        provider = get_payment_provider()
+        provider_name = getattr(provider, "provider_name", "payu")
+        is_configured = provider.is_configured()
+
+        txnid = f"kp_scheme_{str(app.id)[:8]}_{uuid.uuid4().hex[:6]}"
+        farmer = db.get(UserProfile, farmer_id)
+        firstname = farmer.full_name if farmer and farmer.full_name else "Farmer"
+        email = f"{farmer.phone or str(farmer_id)}@krushipragya.in" if farmer else "farmer@krushipragya.in"
+        phone = farmer.phone if farmer and farmer.phone else "9876543210"
+        productinfo = f"Scheme Fee: {scheme.title[:30]}"
+        udf1 = str(app.id)
+        udf2 = str(scheme.id)
+        udf3 = str(farmer_id)
+        udf4 = "SCHEME_APPLICATION"
+        udf5 = ""
+
+        checkout_data = None
+        if is_configured and provider_name == "payu":
+            payment_hash = provider.generate_hash(
+                txnid=txnid,
+                amount=total_dec,
+                productinfo=productinfo,
+                firstname=firstname,
+                email=email,
+                udf1=udf1,
+                udf2=udf2,
+                udf3=udf3,
+                udf4=udf4,
+                udf5=udf5,
+            )
+            checkout_data = {
+                "action_url": provider.action_url,
+                "params": {
+                    "key": provider.merchant_key,
+                    "txnid": txnid,
+                    "amount": f"{total_dec:.2f}",
+                    "productinfo": productinfo,
+                    "firstname": firstname,
+                    "email": email,
+                    "phone": phone,
+                    "surl": "https://krushipragya.in/api/v1/schemes/payments/payu-callback",
+                    "furl": "https://krushipragya.in/api/v1/schemes/payments/payu-callback",
+                    "hash": payment_hash,
+                    "udf1": udf1,
+                    "udf2": udf2,
+                    "udf3": udf3,
+                    "udf4": udf4,
+                    "udf5": udf5,
+                },
+            }
+
+        payment_method = "PHONEPE_STATIC_QR"
+
         if not tx:
             tx = PaymentTransaction(
                 id=uuid.uuid4(),
@@ -202,7 +262,9 @@ class SchemePaymentService:
                 service_fee=srv_dec,
                 total_amount=total_dec,
                 currency="INR",
-                payment_method="PHONEPE_STATIC_QR",
+                payment_method=payment_method,
+                provider=provider_name if is_configured else "none",
+                merchant_transaction_id=txnid if is_configured else None,
                 payment_status="PENDING",
             )
             db.add(tx)
@@ -211,8 +273,17 @@ class SchemePaymentService:
             app.status = "PAYMENT_PENDING"
             db.commit()
             db.refresh(tx)
+        else:
+            if is_configured and provider_name == "payu":
+                tx.merchant_transaction_id = txnid
+                tx.provider = "payu"
+                db.commit()
+                db.refresh(tx)
 
-        # Generate QR Payload
+        if checkout_data:
+            checkout_data["checkout_url"] = f"/api/v1/schemes/payments/payu-checkout-form/{tx.id}"
+
+        # Generate QR Payload fallback
         app_id_short = str(app.id)[:8]
         tx_note = f"Scheme App {app_id_short} - {scheme.title[:20]}"
         qr_data = {
@@ -236,13 +307,23 @@ class SchemePaymentService:
             "transparency_note_en": "Fees are displayed separately for transparency.",
         }
 
+        if is_configured and provider_name == "payu":
+            msg_kn = f"PayU ಮೂಲಕ ಸುರಕ್ಷಿತವಾಗಿ ಪಾವತಿಸಿ: ₹{float(tx.total_amount):.2f}"
+            msg_en = f"Pay application fee securely via PayU: ₹{float(tx.total_amount):.2f}"
+        else:
+            msg_kn = "PhonePe QR ಕೋಡ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ ನಿಖರ ಮೊತ್ತವನ್ನು ಪಾವತಿಸಿ. ನಂತರ UTR ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ."
+            msg_en = "Scan the PhonePe QR code to pay the exact amount. Then enter the UTR reference number."
+
         return SchemePaymentInitiateResponse(
             transaction_id=str(tx.id),
             application_id=str(app.id),
             scheme_id=str(scheme.id),
             scheme_title=scheme.title,
             scheme_title_kn=scheme.title_kn,
-            payment_method="PHONEPE_STATIC_QR",
+            payment_method=payment_method,
+            provider=provider_name if is_configured else "none",
+            gateway_order_id=tx.merchant_transaction_id or txnid,
+            checkout_data=checkout_data,
             payment_status=tx.payment_status,
             official_fee=float(tx.official_fee),
             service_fee=float(tx.service_fee),
@@ -250,8 +331,8 @@ class SchemePaymentService:
             currency="INR",
             qr_data=qr_data,
             fee_summary=fee_summary,
-            message_kn="PhonePe QR ಕೋಡ್ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ ನಿಖರ ಮೊತ್ತವನ್ನು ಪಾವತಿಸಿ. ನಂತರ UTR ಸಂಖ್ಯೆಯನ್ನು ನಮೂದಿಸಿ.",
-            message_en="Scan the PhonePe QR code to pay the exact amount. Then enter the UTR reference number.",
+            message_kn=msg_kn,
+            message_en=msg_en,
         )
 
     @classmethod
@@ -525,6 +606,139 @@ class SchemePaymentService:
             fee = cls.calculate_scheme_fee_info(sc) if sc else None
             results.append(cls._format_application_response(a, sc, fee))
         return results
+
+    @classmethod
+    def process_payu_callback(cls, db: Session, event_data: dict) -> dict:
+        """Process PayU callback / webhook for government scheme applications."""
+        from app.market.services.payment_provider import get_payment_provider
+        provider = get_payment_provider()
+        verify_fn = getattr(provider, "verify_payment_hash", None)
+        if not verify_fn or not verify_fn(event_data):
+            return {"status": "invalid_signature", "reason": "PayU hash verification failed"}
+
+        txnid = event_data.get("txnid")
+        if not txnid:
+            return {"status": "ignored", "reason": "No txnid in event data"}
+
+        tx = (
+            db.query(PaymentTransaction)
+            .filter(
+                (PaymentTransaction.merchant_transaction_id == txnid)
+                | (PaymentTransaction.payment_reference == txnid)
+            )
+            .first()
+        )
+        if not tx and event_data.get("udf1"):
+            try:
+                app_id = uuid.UUID(str(event_data["udf1"]))
+                tx = (
+                    db.query(PaymentTransaction)
+                    .filter(PaymentTransaction.application_id == app_id)
+                    .order_by(PaymentTransaction.created_at.desc())
+                    .first()
+                )
+            except Exception:
+                pass
+
+        if not tx:
+            return {"status": "ignored", "reason": f"No payment transaction found for txnid {txnid}"}
+
+        # Idempotency check: if already PAID, return success
+        if tx.payment_status == "PAID":
+            return {"status": "already_processed", "transaction_id": str(tx.id), "payment_status": "PAID"}
+
+        status_str = str(event_data.get("status", "")).lower()
+        now = datetime.now(timezone.utc)
+        if status_str in ("success", "captured", "paid"):
+            tx.payment_status = "PAID"
+            tx.paid_at = now
+            tx.verified_at = now
+            tx.provider_transaction_id = str(event_data.get("mihpayid") or "")
+            tx.payment_reference = str(event_data.get("mihpayid") or txnid)
+            tx.failure_reason = None
+
+            app = db.get(SchemeApplication, tx.application_id) if tx.application_id else None
+            scheme = db.get(GovernmentScheme, tx.scheme_id) if tx.scheme_id else None
+            farmer = db.get(UserProfile, tx.farmer_id)
+
+            if app:
+                app.payment_status = "PAID"
+                app.status = "READY_FOR_SUBMISSION"
+
+            receipt_id = f"KP-REC-{now.strftime('%Y%m%d')}-{str(tx.id)[:8].upper()}"
+            receipt_payload = {
+                "receipt_id": receipt_id,
+                "app_name": "KrushiPragya",
+                "scheme_name": scheme.title if scheme else "Government Scheme",
+                "scheme_title_kn": scheme.title_kn if scheme else None,
+                "application_id": str(app.id) if app else "",
+                "transaction_id": str(tx.id),
+                "farmer_id": str(tx.farmer_id),
+                "farmer_name": farmer.full_name if farmer else None,
+                "official_fee": float(tx.official_fee),
+                "krushipragya_service_fee": float(tx.service_fee),
+                "total_paid": float(tx.total_amount),
+                "currency": tx.currency,
+                "payment_method": "PAYU",
+                "payment_reference": tx.payment_reference or "N/A",
+                "paid_at": now.isoformat(),
+                "verified_at": now.isoformat(),
+                "payment_status": "PAID",
+                "transparency_notice_kn": "ಶುಲ್ಕಗಳನ್ನು ಪಾರದರ್ಶಕತೆಗಾಗಿ ಪ್ರತ್ಯೇಕವಾಗಿ ತೋರಿಸಲಾಗಿದೆ.",
+                "transparency_notice_en": "Fees are displayed separately for transparency.",
+            }
+            tx.receipt_data = json.dumps(receipt_payload)
+            db.commit()
+            db.refresh(tx)
+            return {"status": "success", "transaction_id": str(tx.id), "payment_status": "PAID"}
+        else:
+            tx.payment_status = "FAILED"
+            tx.failure_reason = event_data.get("error_Message") or event_data.get("unmappedstatus") or "Payment failed at PayU gateway"
+            app = db.get(SchemeApplication, tx.application_id) if tx.application_id else None
+            if app and app.payment_status != "PAID":
+                app.payment_status = "FAILED"
+            db.commit()
+            db.refresh(tx)
+            return {"status": "failed", "transaction_id": str(tx.id), "payment_status": "FAILED"}
+
+    @classmethod
+    def verify_payu_payment(
+        cls,
+        db: Session,
+        farmer_id: uuid.UUID,
+        application_id: uuid.UUID,
+        payload: dict,
+    ) -> Dict[str, Any]:
+        """Verify client-submitted PayU response server-side."""
+        app = db.get(SchemeApplication, application_id)
+        if not app:
+            raise ValueError(f"Scheme application '{application_id}' not found.")
+        if app.farmer_id != farmer_id:
+            raise PermissionError("Access forbidden: You do not own this scheme application.")
+
+        tx = (
+            db.query(PaymentTransaction)
+            .filter(PaymentTransaction.application_id == application_id)
+            .order_by(PaymentTransaction.created_at.desc())
+            .first()
+        )
+        if not tx:
+            raise ValueError("No active payment transaction found for this application.")
+
+        # If already PAID, return current receipt/details
+        if tx.payment_status == "PAID":
+            return cls.get_payment_details_or_receipt(db, farmer_id, application_id)
+
+        # Merge verification data
+        verification_data = payload.get("raw_payload") or payload
+        if "txnid" not in verification_data and tx.merchant_transaction_id:
+            verification_data["txnid"] = tx.merchant_transaction_id
+
+        res = cls.process_payu_callback(db, verification_data)
+        if res.get("status") in ("invalid_signature", "failed"):
+            raise ValueError(res.get("reason") or "Payment signature verification failed.")
+
+        return cls.get_payment_details_or_receipt(db, farmer_id, application_id)
 
     @staticmethod
     def _format_application_response(

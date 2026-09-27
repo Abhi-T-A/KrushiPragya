@@ -283,3 +283,25 @@ export const fetchMyApplications = async (
   return response.data;
 };
 
+/**
+ * Fetch scheme payment status by application ID (polled after PayU checkout)
+ */
+export const fetchSchemePaymentStatus = async (
+  applicationId: string,
+  user?: { phone?: string; id?: string } | null
+): Promise<{
+  application_id: string;
+  scheme_id: string;
+  application_status: string;
+  payment_status: string;
+  transaction_id?: string;
+  total_amount?: number;
+  provider?: string;
+}> => {
+  const response = await api.get(
+    `/schemes/applications/${applicationId}/payment/status`,
+    { headers: getAuthHeaders(user) }
+  );
+  return response.data;
+};
+

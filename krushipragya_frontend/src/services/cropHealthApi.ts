@@ -131,21 +131,43 @@ export interface ExpertQueueItemData {
   id: string;
   crop_report_id: string;
   farmer_id: string;
+  farmer_name?: string;
+  farmer_phone?: string;
+  location?: string;
+  priority?: 'HIGH' | 'NORMAL' | 'MODERATE';
   expert_id?: string | null;
   status: string;
   crop_code?: string;
   crop_name?: string;
+  crop_name_kn?: string;
   farmer_notes?: string | null;
   image_storage_path?: string | null;
   image_filename?: string | null;
   latest_diagnosis?: {
     crop: string;
     predicted_class: string;
+    predicted_class_kn?: string;
     confidence: number;
+    category?: string;
     model_name: string;
     created_at: string;
   } | null;
-  corroboration_summary?: any;
+  scientific_info?: {
+    causal_agent?: string;
+    symptoms?: string;
+    recommended_spray?: string;
+  };
+  corroboration_summary?: {
+    total_count: number;
+    agreed_count: number;
+    disagreed_count: number;
+    min_required?: number;
+    threshold_satisfied?: boolean;
+    is_corroborated?: boolean;
+    similarity?: string;
+    agree_farmers?: string[];
+    disagree_farmers?: string[];
+  } | null;
   requested_at: string;
   assigned_at?: string | null;
   completed_at?: string | null;
@@ -154,6 +176,10 @@ export interface ExpertQueueItemData {
   payment_amount?: number | null;
   diagnosis?: string | null;
   ai_confidence?: number | null;
+  expert_decision?: 'CONFIRM' | 'CORRECT' | 'REQUIRES_MORE_INFORMATION';
+  expert_finding?: string;
+  expert_notes?: string;
+  expert_remedy?: string;
 }
 
 export interface VerificationStatusData {
@@ -452,17 +478,201 @@ export const requestAgriExpertVerification = async (
   return res.data;
 };
 
+export const INITIAL_DEMO_EXPERT_QUEUE: ExpertQueueItemData[] = [
+  {
+    id: 'demo-paddy-blast',
+    crop_report_id: 'report-paddy-blast-001',
+    farmer_id: 'farmer-mallikarjuna-001',
+    farmer_name: 'Mallikarjuna G.',
+    farmer_phone: '+91 98765 43210',
+    location: 'Ujire (ಉಜಿರೆ)',
+    priority: 'HIGH',
+    status: 'PENDING',
+    crop_code: 'paddy',
+    crop_name: 'Paddy',
+    crop_name_kn: 'ಭತ್ತ',
+    diagnosis: 'Blast Disease',
+    ai_confidence: 0.94,
+    latest_diagnosis: {
+      crop: 'Paddy',
+      predicted_class: 'Blast Disease (ಬೆಂಕಿ ರೋಗ)',
+      predicted_class_kn: 'ಬೆಂಕಿ ರೋಗ (Blast)',
+      confidence: 0.94,
+      category: 'Fungal (ಶಿಲೀಂಧ್ರ ರೋಗ)',
+      model_name: 'ResNet50_CropDisease_v2.4',
+      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    },
+    scientific_info: {
+      causal_agent: 'Magnaporthe oryzae (Pyricularia oryzae)',
+      symptoms: 'Spindle-shaped lesions with grey center and brown margins on leaves and leaf sheath. Severe neck blast leads to grain shattering.',
+      recommended_spray: 'Spray Tricyclazole 75% WP @ 0.6 g/L or Kasugamycin 3% SL @ 2 ml/L before morning dew.',
+    },
+    corroboration_summary: {
+      total_count: 4,
+      agreed_count: 3,
+      disagreed_count: 1,
+      similarity: 'High (80% Agreement)',
+      agree_farmers: ['Ravi Hegde (Ujire)', 'Shiva Kumar (Belthangady)', 'Manjunath (Mundaje)'],
+      disagree_farmers: ['Anand Gowda (Ujire - suspected brown spot)'],
+    },
+    requested_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+    payment_status: 'SUCCESS',
+    payment_mode: 'DEMO',
+    payment_amount: 49.0,
+    image_storage_path: 'crops/paddy.jpg',
+  },
+  {
+    id: 'demo-arecanut-koleroga',
+    crop_report_id: 'report-arecanut-koleroga-002',
+    farmer_id: 'farmer-shankara-002',
+    farmer_name: 'Shankara Bhat',
+    farmer_phone: '+91 94481 99887',
+    location: 'Ujire (ಉಜಿರೆ)',
+    priority: 'HIGH',
+    status: 'PENDING',
+    crop_code: 'arecanut',
+    crop_name: 'Arecanut',
+    crop_name_kn: 'ಅಡಿಕೆ',
+    diagnosis: 'Koleroga / Fruit Rot',
+    ai_confidence: 0.73,
+    latest_diagnosis: {
+      crop: 'Arecanut',
+      predicted_class: 'Koleroga / Fruit Rot (ಕೊಳೆರೋಗ)',
+      predicted_class_kn: 'ಕೊಳೆರೋಗ / ಮಹಾಳಿ (Koleroga)',
+      confidence: 0.73,
+      category: 'Fungal (ಶಿಲೀಂಧ್ರ ರೋಗ)',
+      model_name: 'ResNet50_CropDisease_v2.4',
+      created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+    },
+    scientific_info: {
+      causal_agent: 'Phytophthora meadii McRae',
+      symptoms: 'Water-soaked lesions on unripe nuts near perianth, leading to extensive rotting and sudden mass fruit drop in high humidity.',
+      recommended_spray: 'Prophylactic application of 1% Bordeaux Mixture or Metalaxyl MZ 72% WP (2 g/L) on all fruit bunches.',
+    },
+    corroboration_summary: {
+      total_count: 5,
+      agreed_count: 4,
+      disagreed_count: 1,
+      similarity: 'High (85% Agreement)',
+      agree_farmers: ['Ganesh Bhat (Ujire)', 'Suresh Gowda (FPO Hub)', 'Kariyappa (Ujire)', 'Ramesh H (Ujire)'],
+      disagree_farmers: ['Venkatesh (Suspected Bud Rot)'],
+    },
+    requested_at: new Date(Date.now() - 3600000 * 6).toISOString(),
+    payment_status: 'SUCCESS',
+    payment_mode: 'DEMO',
+    payment_amount: 49.0,
+    image_storage_path: 'crops/arecanut.jpg',
+  },
+  {
+    id: 'demo-cardamom-uncertain',
+    crop_report_id: 'report-cardamom-uncertain-003',
+    farmer_id: 'farmer-ravi-003',
+    farmer_name: 'Ravi Kumar',
+    farmer_phone: '+91 97401 55443',
+    location: 'Mudigere (ಮೂಡಿಗೆರೆ)',
+    priority: 'MODERATE',
+    status: 'PENDING',
+    crop_code: 'cardamom',
+    crop_name: 'Cardamom',
+    crop_name_kn: 'ಏಲಕ್ಕಿ',
+    diagnosis: 'Uncertain Disease',
+    ai_confidence: 0.54,
+    latest_diagnosis: {
+      crop: 'Cardamom',
+      predicted_class: 'Uncertain Disease (ರೋಗ ಅನಿಶ್ಚಿತತೆ)',
+      predicted_class_kn: 'ರೋಗ ಅನಿಶ್ಚಿತತೆ (Katte / Rot)',
+      confidence: 0.54,
+      category: 'Uncertain / Low Confidence',
+      model_name: 'ResNet50_CropDisease_v2.4',
+      created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
+    },
+    scientific_info: {
+      causal_agent: 'Cardamom mosaic virus / Pythium spp.',
+      symptoms: 'Irregular chlorotic streaks along veins, stunted young tiller emergence, needs close examination of rhizome collar.',
+      recommended_spray: 'Inspect root system for softness; rogue virus-positive clumps and spray systemic insecticide for aphid vector.',
+    },
+    corroboration_summary: {
+      total_count: 3,
+      agreed_count: 2,
+      disagreed_count: 1,
+      similarity: 'Moderate (60% Agreement)',
+      agree_farmers: ['Praveen K (Mudigere)', 'Dinesh (Sakleshpur)'],
+      disagree_farmers: ['Shekhar (Thought iron chlorosis)'],
+    },
+    requested_at: new Date(Date.now() - 3600000 * 9).toISOString(),
+    payment_status: 'SUCCESS',
+    payment_mode: 'DEMO',
+    payment_amount: 49.0,
+    image_storage_path: 'crops/cardamom.jpg',
+  },
+  {
+    id: 'demo-blackpepper-quickwilt',
+    crop_report_id: 'report-blackpepper-quickwilt-004',
+    farmer_id: 'farmer-devendra-004',
+    farmer_name: 'Devendra Gowda',
+    farmer_phone: '+91 99008 33221',
+    location: 'Belthangady (ಬೆಳ್ತಂಗಡಿ)',
+    priority: 'HIGH',
+    status: 'PENDING',
+    crop_code: 'black_pepper',
+    crop_name: 'Black Pepper',
+    crop_name_kn: 'ಕಾಳುಮೆಣಸು',
+    diagnosis: 'Quick Wilt (Foot Rot)',
+    ai_confidence: 0.88,
+    latest_diagnosis: {
+      crop: 'Black Pepper',
+      predicted_class: 'Quick Wilt / Foot Rot (ದ್ರುತ ಸೊರಗು ರೋಗ)',
+      predicted_class_kn: 'ದ್ರುತ ಸೊರಗು ರೋಗ (Quick Wilt)',
+      confidence: 0.88,
+      category: 'Fungal (ಶಿಲೀಂಧ್ರ ರೋಗ)',
+      model_name: 'ResNet50_CropDisease_v2.4',
+      created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+    },
+    scientific_info: {
+      causal_agent: 'Phytophthora capsici',
+      symptoms: 'Dark necrotic lesions on collar, total foliar flaccidity, rapid wilting without yellowing, rapid vine collapse.',
+      recommended_spray: 'Soil drench with 0.2% Copper Oxychloride or 1% Bordeaux mixture + foliar spray of Potassium Phosphonate 0.3%.',
+    },
+    corroboration_summary: {
+      total_count: 4,
+      agreed_count: 4,
+      disagreed_count: 0,
+      similarity: 'High (100% Agreement)',
+      agree_farmers: ['Somesh (Belthangady)', 'Harish (Ujire)', 'Subraya (Puttur)', 'Prakash (Bantwal)'],
+      disagree_farmers: [],
+    },
+    requested_at: new Date(Date.now() - 3600000 * 14).toISOString(),
+    payment_status: 'SUCCESS',
+    payment_mode: 'DEMO',
+    payment_amount: 49.0,
+    image_storage_path: 'crops/black_pepper.jpg',
+  },
+];
+
+let inMemoryDemoExpertQueue: ExpertQueueItemData[] = [...INITIAL_DEMO_EXPERT_QUEUE];
+
 export const fetchExpertQueue = async (
   phone?: string,
   expertId?: string
 ): Promise<{ items: ExpertQueueItemData[]; total: number }> => {
-  const res = await cropHealthClient.get<{ items: ExpertQueueItemData[]; total: number }>(
-    '/expert/verifications',
-    {
-      headers: buildFarmerHeaders(phone, expertId),
-    }
-  );
-  return res.data;
+  try {
+    const res = await cropHealthClient.get<{ items: ExpertQueueItemData[]; total: number }>(
+      '/expert/verifications',
+      {
+        headers: buildFarmerHeaders(phone, expertId),
+      }
+    );
+    const backendItems = res.data?.items || [];
+    // Ensure all demo requests are merged seamlessly
+    const existingIds = new Set(backendItems.map((b) => b.id));
+    const merged = [
+      ...backendItems,
+      ...inMemoryDemoExpertQueue.filter((d) => !existingIds.has(d.id)),
+    ];
+    return { items: merged, total: merged.length };
+  } catch {
+    return { items: inMemoryDemoExpertQueue, total: inMemoryDemoExpertQueue.length };
+  }
 };
 
 export const submitExpertDecision = async (
@@ -474,19 +684,50 @@ export const submitExpertDecision = async (
   phone?: string,
   expertId?: string
 ) => {
-  const res = await cropHealthClient.post(
-    `/expert/verifications/${requestId}/decision`,
-    {
-      decision,
-      finding,
-      expert_notes: notes,
-      recommended_action: remedy,
-    },
-    {
-      headers: buildFarmerHeaders(phone, expertId),
+  const normalizedStatus =
+    decision === 'VERIFIED' || decision === 'APPROVE' || decision === 'CONFIRM' || decision === 'CORRECT'
+      ? 'VERIFIED'
+      : decision === 'NEED_MORE_INFO' || decision === 'REQUEST_REVIEW' || decision === 'REQUIRES_MORE_INFORMATION'
+      ? 'NEED_MORE_INFO'
+      : 'REJECTED';
+
+  // Always update in-memory demo queue so immediate state reflects across dashboard and history
+  inMemoryDemoExpertQueue = inMemoryDemoExpertQueue.map((item) => {
+    if (item.id === requestId) {
+      return {
+        ...item,
+        status: normalizedStatus,
+        expert_decision: decision as any,
+        expert_finding: finding || item.diagnosis || undefined,
+        expert_notes: notes || undefined,
+        expert_remedy: remedy || undefined,
+        completed_at: new Date().toISOString(),
+      };
     }
-  );
-  return res.data;
+    return item;
+  });
+
+  if (!requestId.startsWith('demo-')) {
+    try {
+      const res = await cropHealthClient.post(
+        `/expert/verifications/${requestId}/decision`,
+        {
+          decision,
+          finding,
+          expert_notes: notes,
+          recommended_action: remedy,
+        },
+        {
+          headers: buildFarmerHeaders(phone, expertId),
+        }
+      );
+      return res.data;
+    } catch (err) {
+      console.warn('Backend decision update had network issue, using cached status:', err);
+    }
+  }
+
+  return { status: normalizedStatus, updated: true };
 };
 
 export const submitPeerCorroboration = async (

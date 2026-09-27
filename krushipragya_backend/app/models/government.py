@@ -632,6 +632,29 @@ class PaymentTransaction(Base):
         nullable=False,
         doc="Payment method: PHONEPE_STATIC_QR, PAYU, RAZORPAY",
     )
+    provider: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        default="payu",
+        server_default="payu",
+        nullable=True,
+        doc="Payment gateway provider: payu, razorpay, phonepe",
+    )
+    merchant_transaction_id: Mapped[Optional[str]] = mapped_column(
+        String(120),
+        nullable=True,
+        index=True,
+        doc="Merchant transaction ID / txnid sent to gateway",
+    )
+    provider_transaction_id: Mapped[Optional[str]] = mapped_column(
+        String(120),
+        nullable=True,
+        doc="Gateway payment transaction ID returned by provider (e.g. mihpayid)",
+    )
+    failure_reason: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Human-readable reason for payment failure from gateway",
+    )
     payment_status: Mapped[str] = mapped_column(
         String(50),
         default="PENDING",
@@ -656,6 +679,13 @@ class PaymentTransaction(Base):
         server_default=func.now(),
         nullable=False,
         doc="Creation timestamp",
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=True,
+        doc="Timestamp of last transaction update",
     )
     paid_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
@@ -691,6 +721,11 @@ class PaymentTransaction(Base):
         "SchemeApplication",
         foreign_keys=[application_id],
     )
+
+    @property
+    def amount(self) -> Decimal:
+        """Convenience property returning total payable amount."""
+        return self.total_amount
 
     def __repr__(self) -> str:
         return f"<PaymentTransaction(id={self.id}, type='{self.transaction_type}', amount={self.total_amount}, status='{self.payment_status}')>"

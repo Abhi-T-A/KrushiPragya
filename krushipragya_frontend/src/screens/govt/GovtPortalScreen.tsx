@@ -111,7 +111,7 @@ export const GovtPortalScreen: React.FC = () => {
           <ShieldAlert size={22} color="#FFFFFF" />
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>
-              {isKn ? 'ಸುನೀತಾ IAS (ಕೃಷಿ ಇಲಾಖೆ)' : 'Sunitha IAS (Dept of Agriculture)'}
+              {isKn ? 'ಕೃಷಿ ಇಲಾಖೆ ಅಧಿಕಾರಿ' : 'Department of Agriculture Officer'}
             </Text>
             <Text style={styles.bannerSub}>
               {isKn ? 'ತಾಲ್ಲೂಕು ಬೆಳೆ ರೋಗ ನಿಗಾ ಪೋರ್ಟಲ್ • ಬೆಳ್ತಂಗಡಿ' : 'Taluk Crop Disease Surveillance • Belthangady'}

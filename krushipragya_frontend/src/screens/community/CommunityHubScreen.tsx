@@ -128,7 +128,7 @@ export const CommunityHubScreen: React.FC<{ navigation: any }> = ({ navigation }
           <Users size={22} color="#FFFFFF" />
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>
-              {isKn ? 'ಸುರೇಶ್ ಗೌಡ (ಗ್ರಾಮ ಸಂಯೋಜಕ)' : 'Suresh Gowda (Village Node / FPO)'}
+              {isKn ? 'ಗ್ರಾಮ ಸಮುದಾಯ ಸಂಯೋಜಕ (FPO)' : 'Village Node / FPO Coordinator'}
             </Text>
             <Text style={styles.bannerSub}>
               {isKn ? 'ಉಜಿರೆ ಗ್ರಾಮ ಸಮುದಾಯ ಕೇಂದ್ರ • ಕೃಷಿ ಸಹಾಯವಾಣಿ' : 'Ujire Village Grassroots Center • Agri Node'}

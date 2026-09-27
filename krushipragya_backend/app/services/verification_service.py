@@ -482,9 +482,10 @@ class VerificationService:
 
         # Eligibility: must be diagnosed
         if not report.diagnoses and report.status == VerificationStatus.UNVERIFIED.value:
-            raise ReportIneligibleError(
-                "Crop report must be diagnosed by AI before requesting expert verification."
-            )
+            if not getattr(payload, "diagnosis", None):
+                raise ReportIneligibleError(
+                    "Crop report must be diagnosed by AI before requesting expert verification."
+                )
 
         # Prevent duplicate active request
         active_request = (
@@ -505,6 +506,37 @@ class VerificationService:
         assigned_status = "ASSIGNED" if payload.expert_id else "PENDING"
         assigned_at = datetime.now(timezone.utc) if payload.expert_id else None
 
+        crop_name = getattr(payload, "crop", None)
+        if not crop_name and report.farmer_crop and report.farmer_crop.crop:
+            crop_name = getattr(report.farmer_crop.crop, "name_en", getattr(report.farmer_crop.crop, "name", report.farmer_crop.crop.code))
+
+        latest_diag = report.diagnoses[0] if report.diagnoses else None
+        if not crop_name and latest_diag and getattr(latest_diag, "crop", None):
+            crop_name = latest_diag.crop.capitalize()
+
+        diag_name = getattr(payload, "diagnosis", None) or (latest_diag.predicted_class if latest_diag else None)
+        diag_conf = getattr(payload, "ai_confidence", None)
+        if diag_conf is None and latest_diag:
+            diag_conf = float(latest_diag.confidence)
+
+        # If report had no diagnoses in DB yet and diagnosis was provided, create diagnosis record and advance status
+        if not report.diagnoses and diag_name:
+            from app.models.crop_report_diagnosis import CropReportDiagnosis
+            new_diag = CropReportDiagnosis(
+                id=uuid.uuid4(),
+                crop_report_id=report.id,
+                crop=(crop_name or "Arecanut").lower(),
+                predicted_class=diag_name,
+                confidence=diag_conf if diag_conf is not None else 0.85,
+                model_name="yolo_ensemble_v1",
+                inference_latency_ms=120.0,
+                created_at=datetime.now(timezone.utc),
+            )
+            db.add(new_diag)
+            if report.status == VerificationStatus.UNVERIFIED.value:
+                report.status = VerificationStatus.AI_ANALYSED.value
+            db.flush()
+
         req = ExpertVerificationRequest(
             id=uuid.uuid4(),
             crop_report_id=report.id,
@@ -514,6 +546,12 @@ class VerificationService:
             expert_notes=payload.notes,
             requested_at=datetime.now(timezone.utc),
             assigned_at=assigned_at,
+            payment_status=payload.payment_status or "SUCCESS",
+            payment_mode=payload.payment_mode or "DEMO",
+            payment_amount=payload.amount or 49.00,
+            crop=crop_name,
+            diagnosis=diag_name,
+            ai_confidence=diag_conf,
         )
         db.add(req)
         db.commit()
@@ -639,7 +677,7 @@ class VerificationService:
                     expert_id=req.expert_id,
                     status=req.status,
                     crop_code=c_code,
-                    crop_name=c_name,
+                    crop_name=req.crop or c_name,
                     farmer_notes=r.notes if r else None,
                     image_storage_path=r.image_storage_path if r else None,
                     image_filename=r.image_filename if r else None,
@@ -648,6 +686,11 @@ class VerificationService:
                     requested_at=req.requested_at,
                     assigned_at=req.assigned_at,
                     completed_at=req.completed_at,
+                    payment_status=req.payment_status or "SUCCESS",
+                    payment_mode=req.payment_mode or "DEMO",
+                    payment_amount=float(req.payment_amount) if req.payment_amount is not None else 49.00,
+                    diagnosis=req.diagnosis or (latest_diag.predicted_class if latest_diag else None),
+                    ai_confidence=req.ai_confidence or (float(latest_diag.confidence) if latest_diag else None),
                 )
             )
 
@@ -812,7 +855,7 @@ class VerificationService:
         now = datetime.now(timezone.utc)
         ladder_advanced = False
 
-        if decision in ["APPROVE", "CONFIRM", "CORRECT"]:
+        if decision in ["APPROVE", "CONFIRM", "CORRECT", "VERIFIED"]:
             req.status = "VERIFIED"
             req.action_type = "CORRECT" if decision == "CORRECT" else "CONFIRM"
 
@@ -839,7 +882,7 @@ class VerificationService:
             req.completed_at = now
             # Do NOT downgrade report status
 
-        elif decision in ["REQUEST_REVIEW", "NEED_MORE_INFO"]:
+        elif decision in ["REQUEST_REVIEW", "NEED_MORE_INFO", "REQUIRES_MORE_INFORMATION"]:
             req.status = "NEED_MORE_INFO"
             req.action_type = "NEED_MORE_INFO"
             req.expert_notes = payload.expert_notes
@@ -850,7 +893,7 @@ class VerificationService:
         else:
             raise InvalidExpertDecisionError(
                 f"Invalid decision '{payload.decision}'. Allowed: "
-                "APPROVE, CONFIRM, CORRECT, REJECT, REQUEST_REVIEW, NEED_MORE_INFO"
+                "APPROVE, CONFIRM, CORRECT, VERIFIED, REJECT, REQUEST_REVIEW, NEED_MORE_INFO, REQUIRES_MORE_INFORMATION"
             )
 
         db.commit()

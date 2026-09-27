@@ -5,6 +5,7 @@ from app.models.crop import Crop
 from app.models.farmer_crop import FarmerCrop
 from app.models.weather_observation import WeatherObservation
 from app.models.advisory_rule import AdvisoryRule
+from app.models.farmer_advisory import FarmerAdvisory
 
 from app.models.crop_report import CropReport
 from app.models.crop_report_diagnosis import CropReportDiagnosis
@@ -35,6 +36,7 @@ __all__ = [
     "CropReportDiagnosis",
     "WeatherObservation",
     "AdvisoryRule",
+    "FarmerAdvisory",
     "Role",
     "UserRole",
     "ExpertVerificationRequest",

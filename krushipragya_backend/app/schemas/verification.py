@@ -203,6 +203,30 @@ class VerificationRequestCreate(BaseModel):
         max_length=1000,
         description="Optional notes from requesting farmer",
     )
+    payment_mode: Optional[str] = Field(
+        default="DEMO",
+        description="Payment mode: DEMO, UPI, etc.",
+    )
+    payment_status: Optional[str] = Field(
+        default="SUCCESS",
+        description="Payment status: SUCCESS, PENDING, FAILED",
+    )
+    amount: Optional[float] = Field(
+        default=49.00,
+        description="Verification fee in INR",
+    )
+    crop: Optional[str] = Field(
+        default=None,
+        description="Crop name from original analysis",
+    )
+    diagnosis: Optional[str] = Field(
+        default=None,
+        description="AI diagnosis class name from original analysis",
+    )
+    ai_confidence: Optional[float] = Field(
+        default=None,
+        description="AI confidence score from original analysis",
+    )
 
 
 class ExpertVerificationRequestResponse(BaseModel):
@@ -222,6 +246,12 @@ class ExpertVerificationRequestResponse(BaseModel):
     requested_at: datetime
     assigned_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    payment_status: Optional[str] = None
+    payment_mode: Optional[str] = None
+    payment_amount: Optional[float] = None
+    crop: Optional[str] = None
+    diagnosis: Optional[str] = None
+    ai_confidence: Optional[float] = None
 
 
 class ExpertDecisionCreate(BaseModel):
@@ -272,6 +302,11 @@ class ExpertQueueItem(BaseModel):
     requested_at: datetime
     assigned_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    payment_status: Optional[str] = None
+    payment_mode: Optional[str] = None
+    payment_amount: Optional[float] = None
+    diagnosis: Optional[str] = None
+    ai_confidence: Optional[float] = None
 
 
 class ExpertQueueListResponse(BaseModel):

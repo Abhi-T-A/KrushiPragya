@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func, text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Numeric, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -96,6 +96,41 @@ class ExpertVerificationRequest(Base):
         DateTime(timezone=True),
         nullable=True,
         doc="Timestamp when expert finalized the verification",
+    )
+    payment_status: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        default="SUCCESS",
+        server_default="SUCCESS",
+        nullable=True,
+        doc="Payment status: SUCCESS, PENDING, FAILED",
+    )
+    payment_mode: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        default="DEMO",
+        server_default="DEMO",
+        nullable=True,
+        doc="Payment mode: DEMO",
+    )
+    payment_amount: Mapped[Optional[float]] = mapped_column(
+        Numeric(10, 2),
+        default=49.00,
+        nullable=True,
+        doc="Review fee in INR",
+    )
+    crop: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        doc="Crop name (e.g. Arecanut, Paddy)",
+    )
+    diagnosis: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Diagnosed condition / disease name",
+    )
+    ai_confidence: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        doc="AI confidence score between 0.0 and 1.0",
     )
 
     # Relationships

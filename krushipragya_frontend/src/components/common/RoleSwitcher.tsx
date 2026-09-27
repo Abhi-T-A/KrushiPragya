@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -79,10 +79,10 @@ export const RoleSwitcher: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.headerLabel}>
-          {language === 'kn' ? '⚡ ಲೈವ್ ಡೆಮೋ ಪಾತ್ರಗಳು (5 Users):' : '⚡ Live 5-User Demo Switcher:'}
+          {language === 'kn' ? '⚡ ಪಾತ್ರ ಬದಲಾಯಿಸಿ (5 Roles):' : '⚡ Role Switcher (5 Roles):'}
         </Text>
         <Text style={styles.activeUserBadge}>
-          {user?.name ? user.name.split('(')[0].trim() : 'Mallikarjuna'}
+          {user?.name ? user.name.split('(')[0].trim() : (language === 'kn' ? 'ಬಳಕೆದಾರ' : 'User')}
         </Text>
       </View>
 

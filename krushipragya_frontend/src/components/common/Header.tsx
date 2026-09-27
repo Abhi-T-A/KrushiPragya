@@ -5,15 +5,19 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
-import { MapPin, Globe2, User, Sprout } from 'lucide-react-native';
+import { MapPin, Globe2, User, Sprout, ArrowLeft } from 'lucide-react-native';
 
 export const Header: React.FC<{
   title?: string;
+  subtitle?: string;
   showVillage?: boolean;
+  onBack?: () => void;
   rightAction?: React.ReactNode;
 }> = ({
   title,
+  subtitle,
   showVillage = true,
+  onBack,
   rightAction,
 }) => {
   const insets = useSafeAreaInsets();
@@ -29,21 +33,59 @@ export const Header: React.FC<{
 
   const isKn = language === 'kn';
 
+  const getRoleLabel = () => {
+    switch (user?.role) {
+      case 'expert':
+        return isKn ? 'ಕೃಷಿ ತಜ್ಞ' : 'Agri Expert';
+      case 'officer':
+        return isKn ? 'ಕೃಷಿ ಅಧಿಕಾರಿ' : 'Govt Officer';
+      case 'buyer':
+        return isKn ? 'ಖರೀದಿದಾರ' : 'Buyer / Trader';
+      case 'community':
+      case 'village_node':
+        return isKn ? 'ಗ್ರಾಮ ಸಮುದಾಯ' : 'Community Node';
+      case 'farmer':
+      default:
+        return isKn ? 'ಬೆಳೆಗಾರ / ರೈತ' : 'Farmer';
+    }
+  };
+
   return (
     <View style={[styles.wrapper, { paddingTop: Math.max(insets.top, 10) + Spacing.xs }]}>
       <View style={styles.topRow}>
-        {/* Left: App Logo & Village Identity (Matching Hand Sketch) */}
-        {!title ? (
+        {/* Left: App Logo & Village Identity or Back Button */}
+        {onBack ? (
+          <View style={styles.backRow}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onBack}
+              style={styles.backBtn}
+            >
+              <ArrowLeft size={20} color={Colors.textPrimary} />
+            </TouchableOpacity>
+            {title ? (
+              <View style={styles.backTitleCol}>
+                <Text style={styles.title}>{title}</Text>
+                {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+              </View>
+            ) : null}
+          </View>
+        ) : !title ? (
           <View style={styles.brandCol}>
             <View style={styles.logoRow}>
               <View style={styles.appLogoCircle}>
                 <Sprout size={18} color="#FFFFFF" strokeWidth={2.4} />
               </View>
               <View>
-                <Text style={styles.appTitle}>
-                  <Text style={{ color: '#166534' }}>Krushi</Text>
-                  <Text style={{ color: '#16A34A' }}>Pragya</Text>
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.appTitle}>
+                    <Text style={{ color: '#166534' }}>Krushi</Text>
+                    <Text style={{ color: '#16A34A' }}>Pragya</Text>
+                  </Text>
+                  <View style={styles.roleTagPill}>
+                    <Text style={styles.roleTagText}>{getRoleLabel()}</Text>
+                  </View>
+                </View>
                 <View style={styles.villageInline}>
                   <MapPin size={11} color={Colors.primary} />
                   <Text style={styles.villageText} numberOfLines={1}>
@@ -66,6 +108,8 @@ export const Header: React.FC<{
 
         {/* Right: Language Pill & Profile Button */}
         <View style={styles.rightActionsRow}>
+          {rightAction}
+
           {/* Language Switcher Pill */}
           <TouchableOpacity
             activeOpacity={0.8}
@@ -89,9 +133,12 @@ export const Header: React.FC<{
         </View>
       </View>
 
-      {title && (
+      {title && !onBack && (
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>{title}</Text>
+          <View>
+            <Text style={styles.title}>{title}</Text>
+            {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+          </View>
           {rightAction}
         </View>
       )}
@@ -204,5 +251,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     marginTop: 2,
+  },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  backTitleCol: {
+    flex: 1,
+  },
+  subtitle: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  roleTagPill: {
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: '#BFE7D7',
+  },
+  roleTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.primaryDark,
   },
 });

@@ -78,7 +78,7 @@ export const TraderMarketScreen: React.FC = () => {
           <Store size={24} color="#FFFFFF" />
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>
-              {user?.name || (isKn ? 'ರಾಜೇಶ್ ಸೇಠ್ (APMC ವರ್ತಕ)' : 'Rajesh Seth (APMC Merchant)')}
+              {user?.name || (isKn ? 'ಖರೀದಿದಾರ / ವರ್ತಕ' : 'Buyer & Trader')}
             </Text>
             <Text style={styles.bannerSub}>
               {isKn ? 'ಎಪಿಎಂಸಿ ದೃಢೀಕೃತ ವ್ಯಾಪಾರ ವೇದಿಕೆ' : 'APMC Verified Trade Network'}

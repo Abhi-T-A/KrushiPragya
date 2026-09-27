@@ -32,6 +32,8 @@ import {
   Sprout,
   CheckCircle2,
   AlertTriangle,
+  Layers,
+  ChevronRight,
 } from 'lucide-react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -366,6 +368,121 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
           )}
         </View>
+
+        {/* 5. FARM INTELLIGENCE & QUICK SERVICES (ಕೃಷಿ ಸೇವೆಗಳು) */}
+        <View style={styles.servicesSection}>
+          <Text style={styles.sectionHeaderTitle}>
+            {isKn ? 'ಕೃಷಿ ಸೇವೆಗಳು & ಸೌಲಭ್ಯಗಳು' : 'Farm Services & Tools'}
+          </Text>
+
+          <View style={styles.grid2x2}>
+            {/* Service 1: Market Rates */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate('MarketTab')}
+              style={styles.actionTile}
+            >
+              <View style={[styles.tileIconBox, { backgroundColor: '#DCFCE7' }]}>
+                <TrendingUp size={20} color="#15803D" strokeWidth={2.2} />
+              </View>
+              <Text style={styles.tileTitle}>{isKn ? 'ಮಾರುಕಟ್ಟೆ ದರ' : 'Mandi Rates'}</Text>
+              <Text style={styles.tileSub}>{isKn ? 'ಅಡಿಕೆ, ಕಾಳುಮೆಣಸು' : 'Arecanut & Spices'}</Text>
+            </TouchableOpacity>
+
+            {/* Service 2: Advisory / Salahe */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate('AdvisoryTab')}
+              style={styles.actionTile}
+            >
+              <View style={[styles.tileIconBox, { backgroundColor: '#FEF3C7' }]}>
+                <Sprout size={20} color="#B45309" strokeWidth={2.2} />
+              </View>
+              <Text style={styles.tileTitle}>{isKn ? 'ಕೃಷಿ ಸಲಹೆ' : 'Crop Advisory'}</Text>
+              <Text style={styles.tileSub}>{isKn ? 'ವೈಜ್ಞಾನಿಕ ಮಾರ್ಗದರ್ಶನ' : 'Smart Guidance'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.grid2x2}>
+            {/* Service 3: Government Schemes */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate('SchemesTab')}
+              style={styles.actionTile}
+            >
+              <View style={[styles.tileIconBox, { backgroundColor: '#F3E8FF' }]}>
+                <Landmark size={20} color="#7E22CE" strokeWidth={2.2} />
+              </View>
+              <Text style={styles.tileTitle}>{isKn ? 'ಸರ್ಕಾರಿ ಯೋಜನೆ' : 'Govt Schemes'}</Text>
+              <Text style={styles.tileSub}>{isKn ? 'ಸಹಾಯಧನ & ಸೌಲಭ್ಯ' : 'Subsidies & Grants'}</Text>
+            </TouchableOpacity>
+
+            {/* Service 4: AI Crop Scan */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate('ReportTab', { screen: 'CropSelect' })}
+              style={styles.actionTile}
+            >
+              <View style={[styles.tileIconBox, { backgroundColor: '#E0F2FE' }]}>
+                <Camera size={20} color="#0284C7" strokeWidth={2.2} />
+              </View>
+              <Text style={styles.tileTitle}>{isKn ? 'ಬೆಳೆ ಪರೀಕ್ಷೆ' : 'Crop Doctor'}</Text>
+              <Text style={styles.tileSub}>{isKn ? 'AI ರೋಗ ಪತ್ತೆ' : 'Instant AI Diagnosis'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 6. MY REGISTERED CROPS (ನನ್ನ ಬೆಳೆಗಳು) */}
+        <View style={styles.myCropsCard}>
+          <View style={styles.myCropsHeader}>
+            <View style={styles.myCropsHeaderLeft}>
+              <Layers size={17} color="#15803D" />
+              <Text style={styles.myCropsTitle}>
+                {isKn ? 'ನನ್ನ ನೋಂದಾಯಿತ ಬೆಳೆಗಳು' : 'My Registered Crops'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('ReportTab', { screen: 'CropSelect' })}
+            >
+              <Text style={styles.myCropsAddBtn}>
+                {isKn ? '+ ಬೆಳೆ ಪರೀಕ್ಷಿಸಿ' : '+ Scan'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.cropItemsList}>
+            {/* Crop 1: Arecanut */}
+            <View style={styles.cropItemRow}>
+              <View style={styles.cropIconCircle}>
+                <Text style={{ fontSize: 18 }}>🌴</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cropItemName}>{isKn ? 'ಅಡಿಕೆ (Arecanut)' : 'Arecanut'}</Text>
+                <Text style={styles.cropItemArea}>2.0 {isKn ? 'ಎಕರೆ' : 'Acres'} • {user?.villageNameKn || 'ಉಜಿರೆ'}</Text>
+              </View>
+              <View style={styles.cropStatusPillGreen}>
+                <CheckCircle2 size={11} color="#15803D" />
+                <Text style={styles.cropStatusTextGreen}>{isKn ? 'ಸುಸ್ಥಿತಿ' : 'Healthy'}</Text>
+              </View>
+            </View>
+
+            {/* Crop 2: Paddy */}
+            <View style={styles.cropItemRow}>
+              <View style={styles.cropIconCircle}>
+                <Text style={{ fontSize: 18 }}>🌾</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cropItemName}>{isKn ? 'ಭತ್ತ (Paddy)' : 'Paddy'}</Text>
+                <Text style={styles.cropItemArea}>0.5 {isKn ? 'ಎಕರೆ' : 'Acres'} • {user?.villageNameKn || 'ಉಜಿರೆ'}</Text>
+              </View>
+              <View style={styles.cropStatusPillAmber}>
+                <AlertTriangle size={11} color="#92400E" />
+                <Text style={styles.cropStatusTextAmber}>{isKn ? 'ಗಮನಿಸಿ' : 'Monitor'}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -377,8 +494,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   scrollContent: {
+    flexGrow: 1,
     padding: Spacing.md,
-    paddingBottom: 80, // Prevent content clipping behind bottom navigation bar
+    paddingBottom: 90, // Prevent content clipping behind bottom navigation bar
     gap: 14,
   },
   /* Weather Card Styles */
@@ -667,5 +785,148 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#15803D',
+  },
+
+  /* Farm Services Styles */
+  servicesSection: {
+    gap: 10,
+  },
+  sectionHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    marginLeft: 2,
+  },
+  grid2x2: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionTile: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 2,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  tileIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  tileTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  tileSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+
+  /* My Registered Crops Styles */
+  myCropsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  myCropsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  myCropsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  myCropsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  myCropsAddBtn: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  cropItemsList: {
+    gap: 8,
+  },
+  cropItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  cropIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cropItemName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  cropItemArea: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  cropStatusPillGreen: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  cropStatusTextGreen: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  cropStatusPillAmber: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  cropStatusTextAmber: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#92400E',
   },
 });

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type UserRole = 'farmer' | 'expert' | 'officer' | 'buyer' | 'community' | 'village_node';
 
@@ -13,6 +14,8 @@ export interface UserProfile {
   villageId: string;
   villageName: string;
   villageNameKn: string;
+  district?: string;
+  state?: string;
   farmSizeAcres?: string;
   mainCrop?: string;
   organization?: string;
@@ -21,8 +24,8 @@ export interface UserProfile {
 export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   farmer: {
     id: '11111111-1111-4111-8111-111111111111',
-    name: 'Mallikarjuna Gowda',
-    nameKn: 'ಮಲ್ಲಿಕಾರ್ಜುನ ಗೌಡ',
+    name: 'Farmer (ರೈತ)',
+    nameKn: 'ರೈತರು',
     phone: '9876543210',
     role: 'farmer',
     roleTitleEn: 'Farmer',
@@ -36,8 +39,8 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   },
   expert: {
     id: '11111111-1111-4111-8111-111111111112',
-    name: 'Dr. Ramesh K (Agronomist)',
-    nameKn: 'ಡಾ. ರಮೇಶ್ (ಕೃಷಿ ತಜ್ಞ)',
+    name: 'Agriculture Expert',
+    nameKn: 'ಕೃಷಿ ತಜ್ಞರು',
     phone: '+91 94481 23456',
     role: 'expert',
     roleTitleEn: 'Agri Expert / Scientist',
@@ -49,8 +52,8 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   },
   officer: {
     id: '11111111-1111-4111-8111-111111111113',
-    name: 'Sunitha IAS (Agri Dept)',
-    nameKn: 'ಶ್ರೀಮತಿ ಸುನಿತಾ (ಕೃಷಿ ಅಧಿಕಾರಿ)',
+    name: 'Government Officer',
+    nameKn: 'ಕೃಷಿ ಅಧಿಕಾರಿ',
     phone: '+91 98450 11223',
     role: 'officer',
     roleTitleEn: 'Government Officer',
@@ -62,8 +65,8 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   },
   buyer: {
     id: '11111111-1111-4111-8111-111111111114',
-    name: 'Rajesh Seth (APMC Merchant)',
-    nameKn: 'ರಾಜೇಶ್ ಸೇಠ್ (ವರ್ತಕ)',
+    name: 'Buyer / Trader',
+    nameKn: 'ಖರೀದಿದಾರ / ವರ್ತಕ',
     phone: '+91 99001 88776',
     role: 'buyer',
     roleTitleEn: 'Buyer & Trader',
@@ -75,8 +78,8 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   },
   community: {
     id: '11111111-1111-4111-8111-111111111115',
-    name: 'Suresh Gowda (FPO Lead)',
-    nameKn: 'ಸುರೇಶ್ ಗೌಡ (ಗ್ರಾಮ ಸಮುದಾಯ)',
+    name: 'Community / FPO',
+    nameKn: 'ಗ್ರಾಮ ಸಮುದಾಯ & ಎಫ್‌ಪಿಒ',
     phone: '+91 97312 34567',
     role: 'community',
     roleTitleEn: 'Community & FPO Node',
@@ -88,8 +91,8 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   },
   village_node: {
     id: '11111111-1111-4111-8111-111111111115',
-    name: 'Suresh Gowda (FPO Lead)',
-    nameKn: 'ಸುರೇಶ್ ಗೌಡ (ಗ್ರಾಮ ಸಮುದಾಯ)',
+    name: 'Community / FPO',
+    nameKn: 'ಗ್ರಾಮ ಸಮುದಾಯ & ಎಫ್‌ಪಿಒ',
     phone: '+91 97312 34567',
     role: 'community',
     roleTitleEn: 'Community & FPO Node',
@@ -101,12 +104,31 @@ export const ROLE_PROFILES: Record<UserRole, UserProfile> = {
   },
 };
 
+export const normalizeRole = (role: string): UserRole => {
+  const r = (role || '').toLowerCase().trim();
+  if (r === 'expert' || r === 'agriculture_expert' || r === 'agri_expert') return 'expert';
+  if (r === 'officer' || r === 'government_officer' || r === 'govt_officer') return 'officer';
+  if (r === 'buyer' || r === 'trader' || r === 'buyer_trader') return 'buyer';
+  if (r === 'community' || r === 'community_member' || r === 'village_node') return 'community';
+  return 'farmer';
+};
+
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  login: (phone: string, role: UserRole, villageId: string, name?: string) => void;
+  login: (phone: string, role: UserRole | string, villageId: string, name?: string) => void;
+  saveCompleteProfile: (data: {
+    name: string;
+    phone: string;
+    role: UserRole | string;
+    villageName: string;
+    villageId?: string;
+    district?: string;
+    state?: string;
+  }) => Promise<void>;
+  restoreUser: (savedUser: UserProfile) => void;
   logout: () => void;
-  setRole: (role: UserRole) => void;
+  setRole: (role: UserRole | string) => void;
   toggleRole: () => void;
 }
 
@@ -114,6 +136,8 @@ const AuthContext = createContext<AuthContextType>({
   user: ROLE_PROFILES.farmer,
   isAuthenticated: true,
   login: () => {},
+  saveCompleteProfile: async () => {},
+  restoreUser: () => {},
   logout: () => {},
   setRole: () => {},
   toggleRole: () => {},
@@ -122,23 +146,90 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(ROLE_PROFILES.farmer);
 
-  const login = (phone: string, role: UserRole, villageId: string, name: string = 'Mallikarjuna Gowda') => {
-    const profile = ROLE_PROFILES[role] || ROLE_PROFILES.farmer;
-    setUser({
+  // Restore persistent profile on launch for returning users
+  useEffect(() => {
+    const loadSavedSession = async () => {
+      try {
+        const isDone = await AsyncStorage.getItem('krushi_profile_setup_done');
+        const savedData = await AsyncStorage.getItem('krushi_auth_user');
+        if (isDone === 'true' && savedData) {
+          const parsed = JSON.parse(savedData);
+          setUser(parsed);
+        }
+      } catch (e) {
+        console.log('[AuthContext] Failed to load saved session:', e);
+      }
+    };
+    loadSavedSession();
+  }, []);
+
+  const login = (phone: string, role: UserRole | string, villageId: string, name?: string) => {
+    const normalizedRole = normalizeRole(role);
+    const profile = ROLE_PROFILES[normalizedRole] || ROLE_PROFILES.farmer;
+    const updated = {
       ...profile,
       phone: phone || profile.phone,
       name: name || profile.name,
+      nameKn: profile.nameKn,
       villageId: villageId || profile.villageId,
-    });
+    };
+    setUser(updated);
   };
 
-  const logout = () => {
+  const saveCompleteProfile = async (data: {
+    name: string;
+    phone: string;
+    role: UserRole | string;
+    villageName: string;
+    villageId?: string;
+    district?: string;
+    state?: string;
+  }) => {
+    const normalizedRole = normalizeRole(data.role);
+    const baseProfile = ROLE_PROFILES[normalizedRole] || ROLE_PROFILES.farmer;
+    const completedUser: UserProfile = {
+      ...baseProfile,
+      name: data.name.trim() || baseProfile.name,
+      nameKn: data.name.trim() || baseProfile.nameKn,
+      phone: data.phone.trim() || baseProfile.phone,
+      villageId: data.villageId || baseProfile.villageId,
+      villageName: data.villageName.trim() || baseProfile.villageName,
+      villageNameKn: data.villageName.trim() || baseProfile.villageNameKn,
+      district: data.district?.trim() || 'Dakshina Kannada',
+      state: data.state?.trim() || 'Karnataka',
+    };
+    setUser(completedUser);
+    try {
+      await AsyncStorage.setItem('krushi_profile_setup_done', 'true');
+      await AsyncStorage.setItem('krushi_auth_user', JSON.stringify(completedUser));
+    } catch (e) {
+      console.log('[AuthContext] Failed to cache profile:', e);
+    }
+  };
+
+  const restoreUser = (savedUser: UserProfile) => {
+    setUser(savedUser);
+  };
+
+  const logout = async () => {
     setUser(null);
+    try {
+      await AsyncStorage.removeItem('krushi_profile_setup_done');
+      await AsyncStorage.removeItem('krushi_auth_user');
+    } catch (e) {
+      console.log('[AuthContext] Failed to clear storage on logout:', e);
+    }
   };
 
-  const setRole = (role: UserRole) => {
-    const normalizedRole = role === 'village_node' ? 'community' : role;
-    setUser(ROLE_PROFILES[normalizedRole] || ROLE_PROFILES.farmer);
+  const setRole = (role: UserRole | string) => {
+    const normalizedRole = normalizeRole(role);
+    const updated = ROLE_PROFILES[normalizedRole] || ROLE_PROFILES.farmer;
+    setUser(updated);
+    try {
+      AsyncStorage.setItem('krushi_auth_user', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
   };
 
   const toggleRole = () => {
@@ -155,6 +246,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated: !!user,
         login,
+        saveCompleteProfile,
+        restoreUser,
         logout,
         setRole,
         toggleRole,

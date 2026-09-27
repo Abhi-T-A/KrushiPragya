@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -27,16 +27,18 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 
+import { CommonActions } from '@react-navigation/native';
+
 interface ProfileScreenProps {
   navigation: any;
 }
 
 const ROLES_LIST: { role: UserRole; titleEn: string; titleKn: string; Icon: any; color: string }[] = [
-  { role: 'farmer', titleEn: 'Farmer (Mallikarjuna)', titleKn: 'ರೈತ (ಮಲ್ಲಿಕಾರ್ಜುನ)', Icon: Sprout, color: '#16A34A' },
-  { role: 'expert', titleEn: 'Agri Expert (Dr. Ramesh)', titleKn: 'ಕೃಷಿ ತಜ್ಞ (ಡಾ. ರಮೇಶ್)', Icon: Microscope, color: '#2563EB' },
-  { role: 'officer', titleEn: 'Govt Officer (Sunitha IAS)', titleKn: 'ಕೃಷಿ ಅಧಿಕಾರಿ (ಸುನಿತಾ)', Icon: Landmark, color: '#9333EA' },
-  { role: 'buyer', titleEn: 'Buyer / Trader (Rajesh Seth)', titleKn: 'ವರ್ತಕ (ರಾಜೇಶ್ ಸೇಠ್)', Icon: Store, color: '#D97706' },
-  { role: 'community', titleEn: 'Community / FPO (Suresh Gowda)', titleKn: 'ಸಮುದಾಯ (ಸುರೇಶ್ ಗೌಡ)', Icon: Users, color: '#0D9488' },
+  { role: 'farmer', titleEn: 'Farmer', titleKn: 'ಬೆಳೆಗಾರ / ರೈತ', Icon: Sprout, color: '#16A34A' },
+  { role: 'expert', titleEn: 'Agri Expert', titleKn: 'ಕೃಷಿ ತಜ್ಞ / ವಿಜ್ಞಾನಿ', Icon: Microscope, color: '#2563EB' },
+  { role: 'officer', titleEn: 'Govt Officer', titleKn: 'ಕೃಷಿ ಅಧಿಕಾರಿ', Icon: Landmark, color: '#9333EA' },
+  { role: 'buyer', titleEn: 'Buyer / Trader', titleKn: 'ಖರೀದಿದಾರ / ವರ್ತಕ', Icon: Store, color: '#D97706' },
+  { role: 'community', titleEn: 'Community / FPO', titleKn: 'ಗ್ರಾಮ ಸಮುದಾಯ & ಎಫ್‌ಪಿಒ', Icon: Users, color: '#0D9488' },
 ];
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
@@ -44,6 +46,50 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, setRole, logout } = useAuth();
 
   const isKn = language === 'kn';
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      let rootNav = navigation;
+      while (rootNav.getParent()) {
+        rootNav = rootNav.getParent();
+      }
+      try {
+        rootNav.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' }],
+          })
+        );
+      } catch {
+        navigation.navigate('MainTabs');
+      }
+    }
+  };
+
+  const handleSelectRole = (newRole: UserRole) => {
+    setRole(newRole);
+    // Profile role selection → immediately reset and navigate to the selected role's dashboard
+    let rootNav = navigation;
+    while (rootNav.getParent()) {
+      rootNav = rootNav.getParent();
+    }
+    try {
+      rootNav.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        })
+      );
+    } catch {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('MainTabs');
+      }
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -69,7 +115,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         <View style={styles.topBar}>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => navigation.goBack()}
+            onPress={handleBack}
             style={styles.backButton}
           >
             <ArrowLeft size={20} color={Colors.textPrimary} />
@@ -92,7 +138,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
               <View style={styles.profileTextCol}>
                 <Text style={styles.farmerName}>
-                  {isKn && user?.nameKn ? user.nameKn : (user?.name || 'Mallikarjuna Gowda')}
+                  {isKn && user?.nameKn ? user.nameKn : (user?.name || (isKn ? 'ರೈತರು' : 'Farmer'))}
                 </Text>
                 <Text style={styles.phoneNumber}>{user?.phone || '+91 98765 43210'}</Text>
                 <View style={styles.villageLocationRow}>
@@ -115,7 +161,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           {/* Switch Active Role */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {isKn ? 'ಪಾತ್ರ ಬದಲಾಯಿಸಿ (Switch Role for Demo)' : 'Switch Active Role'}
+              {isKn ? 'ಪಾತ್ರ ಬದಲಾಯಿಸಿ' : 'Switch Active Role'}
             </Text>
           </View>
 
@@ -128,15 +174,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <TouchableOpacity
                   key={item.role}
                   activeOpacity={0.8}
-                  onPress={() => {
-                    setRole(item.role);
-                    Alert.alert(
-                      isKn ? 'ಪಾತ್ರ ಬದಲಾಗಿದೆ ✅' : 'Role Switched ✅',
-                      isKn
-                        ? `${titleKn} ಪಾತ್ರಕ್ಕೆ ಯಶಸ್ವಿಯಾಗಿ ಬದಲಾಯಿಸಲಾಗಿದೆ.`
-                        : `Switched to ${titleEn} persona.`
-                    );
-                  }}
+                  onPress={() => handleSelectRole(item.role)}
                   style={[
                     styles.roleItem,
                     isSelected && { borderColor: color, borderWidth: 1.5, backgroundColor: '#F8FAFC' },

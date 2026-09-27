@@ -9,15 +9,24 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { SplashScreen } from './src/screens/auth/SplashScreen';
 import { LanguageSelectionScreen } from './src/screens/auth/LanguageSelectionScreen';
 import { OnboardingScreen } from './src/screens/auth/OnboardingScreen';
-import { LoginScreen } from './src/screens/auth/LoginScreen';
-import { OTPVerificationScreen } from './src/screens/auth/OTPVerificationScreen';
+import { RoleSelectionScreen } from './src/screens/auth/RoleSelectionScreen';
 import { ProfileSetupScreen } from './src/screens/auth/ProfileSetupScreen';
+import { OTPVerificationScreen } from './src/screens/auth/OTPVerificationScreen';
+import { LocationSetupScreen } from './src/screens/auth/LocationSetupScreen';
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState<
-    'splash' | 'language' | 'onboarding' | 'login' | 'otp' | 'profile_setup' | 'main'
+    | 'splash'
+    | 'language'
+    | 'onboarding'
+    | 'role_selection'
+    | 'profile_setup'
+    | 'otp'
+    | 'location'
+    | 'main'
   >('splash');
 
+  const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('+91 98765 43210');
 
   return (
@@ -27,7 +36,10 @@ export default function App() {
           <ReportProvider>
             {currentStep === 'splash' && (
               <>
-                <SplashScreen onFinish={() => setCurrentStep('language')} />
+                <SplashScreen
+                  onFinish={() => setCurrentStep('language')}
+                  onReturningUser={() => setCurrentStep('main')}
+                />
                 <StatusBar style="light" />
               </>
             )}
@@ -42,23 +54,36 @@ export default function App() {
             {currentStep === 'onboarding' && (
               <>
                 <OnboardingScreen
-                  onFinish={() => setCurrentStep('login')}
+                  onFinish={() => setCurrentStep('role_selection')}
                   onBack={() => setCurrentStep('language')}
                 />
                 <StatusBar style="dark" />
               </>
             )}
 
-            {currentStep === 'login' && (
+            {currentStep === 'role_selection' && (
               <>
-                <LoginScreen
-                  onProceedToOTP={(p) => {
-                    setPhone(p);
-                    setCurrentStep('otp');
-                  }}
+                <RoleSelectionScreen
+                  onContinue={() => setCurrentStep('profile_setup')}
                   onBack={() => setCurrentStep('onboarding')}
                 />
                 <StatusBar style="light" />
+              </>
+            )}
+
+            {currentStep === 'profile_setup' && (
+              <>
+                <ProfileSetupScreen
+                  initialName={fullName}
+                  initialPhone={phone}
+                  onProceedToOTP={(data) => {
+                    setFullName(data.fullName);
+                    setPhone(data.phone);
+                    setCurrentStep('otp');
+                  }}
+                  onBack={() => setCurrentStep('role_selection')}
+                />
+                <StatusBar style="dark" />
               </>
             )}
 
@@ -66,16 +91,16 @@ export default function App() {
               <>
                 <OTPVerificationScreen
                   phone={phone}
-                  onVerifySuccess={() => setCurrentStep('profile_setup')}
-                  onBack={() => setCurrentStep('login')}
+                  onVerifySuccess={() => setCurrentStep('location')}
+                  onBack={() => setCurrentStep('profile_setup')}
                 />
                 <StatusBar style="dark" />
               </>
             )}
 
-            {currentStep === 'profile_setup' && (
+            {currentStep === 'location' && (
               <>
-                <ProfileSetupScreen
+                <LocationSetupScreen
                   onComplete={() => setCurrentStep('main')}
                   onBack={() => setCurrentStep('otp')}
                 />
